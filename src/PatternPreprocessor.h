@@ -9,53 +9,40 @@
 #include <vector>
 #include <set>
 #include <cassert>
-#include "Trie.h"
-#include "Constants.h"
+#include "Config.h"
 
 
 namespace libra {
 
-  struct Pattern {
+  typedef struct {
 
-    int nnodes = 0, nedges = 0;
+    pattern_node_t nnodes = 0;
+    label_t vertex_label[PAT_SIZE];
+    graph_node_t partial[PAT_SIZE][PAT_SIZE];
+    set_op_t set_ops[PAT_SIZE][PAT_SIZE];
+  } Pattern;
 
-    int vertex_label_[MAX_PAT_SIZE];
-    int partial_[MAX_PAT_SIZE];
-
-    // dependency_[i][0] is the size of dependency_[i]
-    // dependency_[i][2j+1] is the index of set in level i-1 that need to be computed with the current neighbor set
-    // dependency_[i][2j+2] is the op (intersection or diff)
-    int dependency_[MAX_PAT_SIZE][2 * MAX_PAT_SIZE + 1];
-
-    // the index of the candidate set in stk
-    int candidate_idx_[MAX_PAT_SIZE];
-    int first_positive_[MAX_PAT_SIZE];
-
-    int dependency_partial_[MAX_PAT_SIZE][MAX_PAT_SIZE][MAX_PAT_SIZE];
-
-    Pattern* to_gpu() {
-      Pattern* pat;
-      cudaMalloc(&pat, sizeof(Pattern));
-      cudaMemcpy(pat, this, sizeof(Pattern), cudaMemcpyHostToDevice);
-      return pat;
-    }
-  };
 
   struct PatternPreprocessor {
 
-    Pattern pat_;
+    Pattern pat;
 
-    int adj_matrix_[MAX_PAT_SIZE][MAX_PAT_SIZE];
-    int vertex_order_[MAX_PAT_SIZE];
-    int order_map_[MAX_PAT_SIZE];
+    int adj_matrix_[PAT_SIZE][PAT_SIZE];
+    int vertex_order_[PAT_SIZE];
+    int order_map_[PAT_SIZE];
     std::vector<std::vector<int>> L_adj_matrix_;
 
     PatternPreprocessor(std::string filename) {
       readfile(filename);
-      get_matching_order();
-      get_partial_order();
-      code_motion();
-      std::cout << "Pattern read complete. Pattern size: " << pat_.nnodes << std::endl;
+      // TODO: analyze pattern and fill in pat
+      std::cout << "Pattern read complete. Pattern size: " << (int)pat.nnodes << std::endl;
+    }
+
+    Pattern* to_gpu() {
+      Pattern* patcopy;
+      cudaMalloc(&patcopy, sizeof(Pattern));
+      cudaMemcpy(patcopy, &pat, sizeof(Pattern), cudaMemcpyHostToDevice);
+      return patcopy;
     }
 
     void readfile(std::string& filename) {
@@ -64,30 +51,31 @@ namespace libra {
       std::ifstream fin(filename);
       std::string line;
       while (std::getline(fin, line) && (line[0] == '#'));
-      pat_.nnodes = 0;
-      std::vector<int> vertex_labels;
+      pat.nnodes = 0;
+      std::vector<label_t> vertex_labels;
       do {
         std::istringstream sin(line);
         char tmp;
-        int v;
-        int label;
+        pattern_node_t v;
+        label_t label;
         sin >> tmp >> v >> label;
         vertex_labels.push_back(label);
-        pat_.nnodes++;
+        pat.nnodes++;
       } while (std::getline(fin, line) && (line[0] == 'v'));
 
       memset(adj_matrix_, 0, sizeof(adj_matrix_));
       do {
         std::istringstream sin(line);
         char tmp;
-        int v1, v2, label;
+        pattern_node_t v1, v2;
+        label_t label;
         sin >> tmp >> v1 >> v2 >> label;
         adj_matrix_[v1][v2] = label;
         adj_matrix_[v2][v1] = label;
       } while (getline(fin, line));
     }
 
-
+    /*
     void get_matching_order() {
       int root = 0;
       int max_degree = 0;
@@ -217,10 +205,8 @@ namespace libra {
     }
 
     void code_motion() {
-      // JIANG: this stores the last vertex from level 0 to l-1 that is connected to the vertex at level l
       std::vector<bool> v0_positive(pat_.nnodes);
 
-      // JIANG: this stores the original set ops (without code motion) for each level, positive means intersection, negative means difference 
       std::vector<std::vector<int>> set_ops(pat_.nnodes);
 
       for (int level = 1; level < pat_.nnodes; level++) {
@@ -291,6 +277,6 @@ namespace libra {
           memcpy(&pat_.dependency_partial_[i][j][0], slot.data(), sizeof(int) * slot.size());
         }
       }
-    }
+    } */
   };
 }

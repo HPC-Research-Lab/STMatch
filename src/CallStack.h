@@ -3,21 +3,23 @@
 #include <stdlib.h> 
 #include <string.h>
 #include <stdio.h>
-#include "Constants.h"
+#include "Config.h"
 
 namespace libra {
 
-  struct CallStack {
+  typedef struct {
 
-    size_t path_[MAX_PAT_SIZE];
-    size_t iter_[MAX_PAT_SIZE];
-    size_t slot_size[MAX_PAT_SIZE][MAX_PAT_SIZE];
-    size_t(*slot_storage)[MAX_PAT_SIZE][MAX_GRAPH_DEGREE];
+    graph_node_t path[PAT_SIZE];
+    graph_node_t iter[PAT_SIZE];
+    graph_node_t slot_size[PAT_SIZE][PAT_SIZE];
+    graph_node_t(*slot_storage)[PAT_SIZE][GRAPH_DEGREE];
+  } CallStack;
 
-    CallStack() {
-      memset(path_, 0, sizeof(path_));
-      memset(iter_, 0, sizeof(iter_));
-      memset(slot_size, 0, sizeof(slot_size));
-    }
-  };
+/*
+  void init() {
+    memset(path, 0, sizeof(path));
+    memset(iter, 0, sizeof(iter));
+    memset(slot_size, 0, sizeof(slot_size));
+  }
+  */
 }
