@@ -1,0 +1,11 @@
+build/*
+data/*
+data/graph/*
+.vscode/*
+legacy/*
+examples/*
+script/*
+a.out
+.DS_Store
+
+
