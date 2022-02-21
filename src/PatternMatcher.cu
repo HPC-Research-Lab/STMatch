@@ -100,7 +100,7 @@ namespace libra {
       }
     }
 
-    if (threadIdx.x == 0) printf("%lu\n", pm->count);
+    if (threadIdx.x == 0) printf("count: %lu\n", pm->count);
   }
 
 

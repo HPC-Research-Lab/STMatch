@@ -7,5 +7,7 @@ examples/*
 script/*
 a.out
 .DS_Store
+*.o
+main
 
 

@@ -53,7 +53,7 @@ namespace libra {
 
       std::cout << "shared memory usage: " << sizeof(Graph) << " " << sizeof(Pattern) << " " << sizeof(PatternMatcher) * NWARPS_PER_BLOCK << std::endl;
 
-      _parallel_match << <GRID_DIM, BLOCK_DIM, sizeof(Graph) + sizeof(Pattern) + sizeof(PatternMatcher) * NWARPS_PER_BLOCK >> > (gpu_graph_, gpu_pattern_, gpu_callstack_, job_queue_);
+      _parallel_match << <GRID_DIM, BLOCK_DIM >> > (gpu_graph_, gpu_pattern_, gpu_callstack_, job_queue_);
 
       cudaDeviceSynchronize();
 
