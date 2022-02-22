@@ -18,7 +18,7 @@ namespace libra {
 
     pattern_node_t nnodes = 0;
     label_t vertex_label[PAT_SIZE];
-    graph_node_t partial[PAT_SIZE][PAT_SIZE];
+    pattern_node_t partial[PAT_SIZE][PAT_SIZE];
     set_op_t set_ops[PAT_SIZE][PAT_SIZE];
   } Pattern;
 
