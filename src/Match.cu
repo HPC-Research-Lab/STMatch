@@ -4,13 +4,145 @@
 namespace libra {
 
   // TODO: implement intersection and difference
+
   template<typename DATA_T, typename SIZE_T>
-  __device__ void intersection(DATA_T* set1, DATA_T* set2, SIZE_T set1_size, SIZE_T set2_size, DATA_T ub) {
+  __device__
+    inline bool lower_bound_exist(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
+    int mid;
+    int low = 0;
+    int high = set2_size;
+    while (low < high) {
+      mid = low + (high - low) / 2;
+      if (target <= set2[mid]) {
+        high = mid;
+      }
+      else {
+        low = mid + 1;
+      }
+    }
+    if (low < set2_size && set2[low] < target) {
+      low++;
+    }
+    return (low < set2_size&& set2[low] == target);
+  }
+
+
+  __device__ void prefix_sum(int* _input) {
+
+    int thid = threadIdx.x;
+    int offset = 1;
+    for (int d = warpSize >> 1; d > 0; d >>= 1) // build sum in place up the tree
+    {
+      //__syncthreads();
+      if (thid < d)
+      {
+        int ai = offset * (2 * thid + 1) - 1;
+        int bi = offset * (2 * thid + 2) - 1;
+        _input[bi] += _input[ai];
+      }
+      offset *= 2;
+    }
+    if (thid == 0) { _input[warpSize - 1] = 0; } // clear the last element
+    for (int d = 1; d < warpSize; d *= 2) // traverse down tree & build scan
+    {
+      offset >>= 1;
+      //__syncthreads();
+      if (thid < d)
+      {
+        int ai = offset * (2 * thid + 1) - 1;
+        int bi = offset * (2 * thid + 2) - 1;
+        int t = _input[ai];
+        _input[ai] = _input[bi];
+        _input[bi] += t;
+      }
+    }
+    //__syncthreads();
+  }
+
+
+  template<typename DATA_T, typename SIZE_T>
+  __device__ void intersection(DATA_T* set1, DATA_T* set2, DATA_T* _res, SIZE_T set1_size, SIZE_T set2_size, SIZE_T* res_size, DATA_T ub) {
+
+    __shared__ int pos[32];
+    int tid = threadIdx.x;
+    int end_pos = 0;
+    int loop_end = set1_size - set1_size % warpSize + warpSize;
+    bool last_find;
+    for (int idx = tid; idx < loop_end && set1[idx] < ub; idx += warpSize) {
+      last_find = false;
+      pos[tid] = 0;
+      if (idx < set1_size && set1[idx] < ub) {
+        if (lower_bound_exist(set2, set2_size, set1[idx])) {
+          pos[tid] = 1;
+        }
+        if (threadIdx.x == warpSize - 1 && pos[warpSize - 1] == 1) {
+          last_find = true;
+        }
+      }
+      prefix_sum(pos);
+
+      if ((tid == warpSize - 1 && last_find) ||
+        tid != warpSize - 1 && pos[tid] < pos[tid + 1]) {
+        _res[end_pos + pos[tid]] = set1[idx];
+      }
+      end_pos += pos[warpSize - 1];
+    }
+    // __syncthreads();
+     /*
+     if(tid==0){
+       for(int i =0; i<end_pos; i++){
+         printf("%d ", _res[i]);
+       }
+       printf("\n");
+     }
+ */
+    *res_size = end_pos;
 
   }
 
   template<typename DATA_T, typename SIZE_T>
-  __device__ void difference(DATA_T* set1, DATA_T* set2, SIZE_T set1_size, SIZE_T set2_size, DATA_T ub) {
+  __device__ void difference(DATA_T* set1, DATA_T* set2, DATA_T* res, SIZE_T set1_size, SIZE_T set2_size, SIZE_T* res_size, DATA_T ub) {
+
+    __shared__ int pos[32];
+    int tid = threadIdx.x;
+    int end_pos = 0;
+    int loop_end = set1_size - set1_size % warpSize + warpSize;
+    bool last_find;
+    for (int idx = tid; idx < loop_end; idx += warpSize) {
+      last_find = false;
+      pos[tid] = 0;
+
+      if (idx < set1_size && set1[idx] < ub) {
+        if (!lower_bound_exist(set2, set2_size, set1[idx])) {
+          pos[tid] = 1;
+        }
+        if (threadIdx.x == warpSize - 1 && pos[warpSize - 1] == 1) {
+          last_find = true;
+        }
+      }
+      prefix_sum(pos);
+
+      if ((tid == warpSize - 1 && last_find) ||
+        tid != warpSize - 1 && pos[tid] < pos[tid + 1]) {
+        res[end_pos + pos[tid]] = set1[idx];
+      }
+      end_pos += pos[warpSize - 1];
+    }
+    // __syncthreads();
+     /*
+     if(tid==0){
+       for(int i =0; i<end_pos; i++){
+         printf("%d ", _res[i]);
+       }
+       printf("\n");
+     }
+ */
+ //clock_t stop_time = clock();
+ //if(threadIdx.x==0){
+     //printf("time pointer2:%p\n", time_);
+     //time_[blockIdx.x] = stop_time - start_time;
+ //}
+    * res_size = end_pos;
 
   }
 
@@ -64,37 +196,31 @@ namespace libra {
 
               // TODO: compute ub based on pattern->partial
               graph_node_t ub = INT_MAX;
+              if (pat->partial[level][i] >= 0) ub = stk->path[pat->partial[level][i]];
 
               graph_node_t* neighbor = g->rowptr[stk->path[level]] + g->colidx;
               graph_node_t neighbor_size = (graph_node_t)(g->rowptr[stk->path[level] + 1] - g->rowptr[stk->path[level]]);
 
               if (pat->set_ops[level][i] & 0x10) {
-                // TODO: change to warp 
-                for (graph_node_t j = 0; j < neighbor_size; j++) {
-                  stk->slot_storage[level][i][j] = neighbor[j];
+
+                graph_node_t* nb = g->rowptr[stk->path[level - 1]] + g->colidx;
+                graph_node_t nsize = (graph_node_t)(g->rowptr[stk->path[level - 1] + 1] - g->rowptr[stk->path[level - 1]]);
+
+                difference(neighbor, nb, &(stk->slot_storage[level][i][0]), neighbor_size, nsize, &(stk->slot_size[level][i]), ub);
+
+                for (pattern_node_t j = level - 2; j >= 0; j--) {
+                  nb = g->rowptr[stk->path[j]] + g->colidx;
+                  nsize = (graph_node_t)(g->rowptr[stk->path[j] + 1] - g->rowptr[stk->path[j]]);
+
+                  difference(&(stk->slot_storage[level][i][0]), nb, &(stk->slot_storage[level][i][0]), stk->slot_size[level][i], nsize, &(stk->slot_size[level][i]), ub);
                 }
-                stk->slot_size[level][i] = neighbor_size;
-
-                for (pattern_node_t j = level - 1; j >= 0; j--) {
-                  graph_node_t* nb = g->rowptr[stk->path[j]] + g->colidx;
-                  graph_node_t nsize = (graph_node_t)(g->rowptr[stk->path[j] + 1] - g->rowptr[stk->path[j]]);
-
-                  difference(&(stk->slot_storage[level][i][0]), nb, stk->slot_size[level][i], nsize, ub);
-                }
-
               }
               else {
-                // TODO: change to warp
-                for (graph_node_t j = 0; j < stk->slot_size[level - 1][slot_idx]; j++) {
-                  stk->slot_storage[level][i][j] = stk->slot_storage[level - 1][slot_idx][j];
-                }
-                stk->slot_size[level][i] = stk->slot_size[level - 1][slot_idx];
-
                 if (pat->set_ops[level][i] & 0x20) {
-                  difference(&(stk->slot_storage[level][i][0]), neighbor, stk->slot_size[level][i], neighbor_size, ub);
+                  intersection(&(stk->slot_storage[level - 1][slot_idx][0]), neighbor, &(stk->slot_storage[level][i][i]), stk->slot_size[level - 1][slot_idx], neighbor_size, &(stk->slot_size[level][i]), ub);
                 }
                 else {
-                  intersection(&(stk->slot_storage[level][i][0]), neighbor, stk->slot_size[level][i], neighbor_size, ub);
+                  difference(&(stk->slot_storage[level - 1][slot_idx][0]), neighbor, &(stk->slot_storage[level][i][i]), stk->slot_size[level - 1][slot_idx], neighbor_size, &(stk->slot_size[level][i]), ub);
                 }
               }
             }

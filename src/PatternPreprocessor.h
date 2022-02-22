@@ -32,8 +32,16 @@ namespace libra {
     int order_map_[PAT_SIZE];
     std::vector<std::vector<int>> L_adj_matrix_;
 
+    int length[PAT_SIZE];
+    int edge[PAT_SIZE][PAT_SIZE];
+
     PatternPreprocessor(std::string filename) {
       readfile(filename);
+      get_matching_order();
+
+      //code motion: get_set_ops();
+      get_partial_order();
+
       // TODO: analyze pattern and fill in pat
       std::cout << "Pattern read complete. Pattern size: " << (int)pat.nnodes << std::endl;
     }
@@ -75,13 +83,13 @@ namespace libra {
       } while (getline(fin, line));
     }
 
-    /*
+
     void get_matching_order() {
       int root = 0;
       int max_degree = 0;
-      for (int i = 0; i < pat_.nnodes; i++) {
+      for (int i = 0; i < pat.nnodes; i++) {
         int d = 0;
-        for (int j = 0; j < pat_.nnodes; j++) {
+        for (int j = 0; j < pat.nnodes; j++) {
           if (adj_matrix_[i][j] > 0) d++;
         }
         if (d > max_degree) {
@@ -93,7 +101,7 @@ namespace libra {
       std::vector<int> q;
       q.push_back(root);
       int i = 0;
-      std::vector<int> visited(pat_.nnodes, 0);
+      std::vector<int> visited(pat.nnodes, 0);
       while (!q.empty()) {
         int a = q.back();
         q.pop_back();
@@ -101,7 +109,7 @@ namespace libra {
           vertex_order_[i++] = a;
         }
         visited[a] = 1;
-        for (int b = 0; b < pat_.nnodes; b++) {
+        for (int b = 0; b < pat.nnodes; b++) {
           if (adj_matrix_[a][b] > 0 && !visited[b])
             q.push_back(b);
         }
@@ -130,29 +138,29 @@ namespace libra {
     void get_partial_order() {
 
       std::vector<int> p1;
-      for (int i = 0; i < pat_.nnodes; i++) {
+      for (int i = 0; i < pat.nnodes; i++) {
         p1.push_back(i);
       }
       std::vector<std::vector<int>> permute, valid_permute;
-      _permutation(permute, p1, 0, pat_.nnodes - 1);
+      _permutation(permute, p1, 0, pat.nnodes - 1);
 
-      for (int i = 0; i < pat_.nnodes; i++)
+      for (int i = 0; i < pat.nnodes; i++)
         order_map_[vertex_order_[i]] = i;
 
       for (auto pp : permute) {
-        std::vector<std::vector<int>> adj_tmp(pat_.nnodes);
-        for (int i = 0; i < pat_.nnodes; i++) {
+        std::vector<std::vector<int>> adj_tmp(pat.nnodes);
+        for (int i = 0; i < pat.nnodes; i++) {
           std::set<int> tp;
-          for (int j = 0; j < pat_.nnodes; j++) {
+          for (int j = 0; j < pat.nnodes; j++) {
             if (adj_matrix_[i][j] > 0) {
               tp.insert(pp[j]);
             }
             adj_tmp[pp[i]] = std::vector<int>(tp.begin(), tp.end());
           }
           bool valid = true;
-          for (int i = 0; i < pat_.nnodes; i++) {
+          for (int i = 0; i < pat.nnodes; i++) {
             int d = 0;
-            for (int j = 0; j < pat_.nnodes; j++) {
+            for (int j = 0; j < pat.nnodes; j++) {
               if (adj_matrix_[i][j] > 0) d++;
             }
             if (d == adj_tmp[i].size()) {
@@ -174,9 +182,9 @@ namespace libra {
         }
       }
 
-      L_adj_matrix_.resize(pat_.nnodes, std::vector<int>(pat_.nnodes, 0));
+      L_adj_matrix_.resize(pat.nnodes, std::vector<int>(pat.nnodes, 0));
       std::set<std::pair<int, int>> L;
-      for (int i = 0; i < pat_.nnodes; i++) {
+      for (int i = 0; i < pat.nnodes; i++) {
         int v = vertex_order_[i];
         std::vector<std::vector<int>> stabilized_aut;
         for (auto& x : valid_permute) {
@@ -190,9 +198,9 @@ namespace libra {
         valid_permute = stabilized_aut;
       }
 
-      memset(pat_.partial_, -1, sizeof(pat_.partial_));
+      memset(pat.partial, -1, sizeof(pat.partial));
       int pivot = -1;
-      for (int level = 0; level < pat_.nnodes; level++) {
+      for (int level = 1; level < pat.nnodes; level++) {
         pivot = -1;
         for (int j = level - 1; j >= 0; j--) {
           if (L_adj_matrix_[j][level] == 1) {
@@ -200,83 +208,33 @@ namespace libra {
             break;
           }
         }
-        pat_.partial_[level] = pivot;
+        pat.partial[level][0] = pivot;
+      }
+
+      // propagate partial order of candiate sets to all slots
+      memset(edge, 0, sizeof(edge));
+      for (int j = 0; j < PAT_SIZE; j++) edge[0][j] = 1;
+      for (int i = 1; i < pat.nnodes; i++) {
+        int t = pat.partial[i][0];
+        if (t != -1) {
+          edge[i][pat.partial[i][0]] = 1;
+          for (int k = 0; k < pat.nnodes; k++) {
+            if (edge[t][k] != 0)
+              edge[i][k] = 1;
+          }
+        }
+      }
+      for (int i = pat.nnodes - 2; i > 0; i--) {
+        for (int j = 1; j < length[i]; j++) {
+          int m = 0;
+          for (int k = 0; k < length[i + 1]; k++) {
+            if ((pat.set_ops[i + 1][k] & 0xF) == j) {
+              if (edge[m][pat.partial[i + 1][k]]) m = k;
+            }
+          }
+          pat.partial[i][j] = (m ? m : -1);
+        }
       }
     }
-
-    void code_motion() {
-      std::vector<bool> v0_positive(pat_.nnodes);
-
-      std::vector<std::vector<int>> set_ops(pat_.nnodes);
-
-      for (int level = 1; level < pat_.nnodes; level++) {
-        for (int k = 0; k <= level - 1; k++) {
-          if (adj_matrix_[vertex_order_[k]][vertex_order_[level]] > 0) {
-            if (k == 0) v0_positive[level] = true;
-            set_ops[level].push_back(k);
-          }
-          else {
-            if (k == 0) v0_positive[level] = false;
-            set_ops[level].push_back(-k);
-          }
-        }
-      }
-
-      std::vector<std::vector<std::vector<int> > > partial_level_dependency(pat_.nnodes);
-      std::vector<std::vector<std::pair<int, int> > > trie_level_dependency(pat_.nnodes);
-      std::vector<int> trie_candidate_index(pat_.nnodes);
-
-      Trie trie(pat_.nnodes);
-      trie.L_adj_matrix_ = &L_adj_matrix_;
-
-      for (int i = 0; i < set_ops.size(); i++) {
-        trie.insert(set_ops[i], v0_positive[i]);
-      }
-      trie.trie2vec(partial_level_dependency, trie_level_dependency, trie_candidate_index);
-      memcpy(pat_.candidate_idx_, trie_candidate_index.data(), sizeof(int) * trie_candidate_index.size());
-
-      memset(pat_.dependency_, -1, sizeof(pat_.dependency_));
-
-      for (int i = 0; i < trie_level_dependency.size(); i++) {
-        pat_.dependency_[i][0] = trie_level_dependency[i].size();
-        for (int j = 0; j < trie_level_dependency[i].size(); j++) {
-          std::pair<int, int>& k = trie_level_dependency[i][j];
-          pat_.dependency_[i][2 * j + 1] = k.first;
-          pat_.dependency_[i][2 * j + 2] = k.second;
-        }
-      }
-
-      std::vector<int> trie_left_mark(pat_.nnodes, 2);
-      trie_left_mark[0] = 0;
-      for (int i = 1; i < trie_level_dependency.size(); i++) {
-        if (i == 1) {
-          if (trie_level_dependency[1].size() == 2) {
-            trie_left_mark[i] = 0;
-            continue;
-          }
-          else {
-            break;
-          }
-        }
-        if (trie_level_dependency[i][0].second < 0) {
-          trie_left_mark[i] = 0;
-        }
-        else {
-          trie_left_mark[i] = 1;
-          break;
-        }
-      }
-
-      memcpy(pat_.first_positive_, trie_left_mark.data(), trie_left_mark.size() * sizeof(int));
-
-      memset(pat_.dependency_partial_, -1, sizeof(pat_.dependency_partial_));
-
-      for (int i = 0; i < partial_level_dependency.size(); i++) {
-        for (int j = 0; j < partial_level_dependency[i].size(); j++) {
-          auto& slot = partial_level_dependency[i][j];
-          memcpy(&pat_.dependency_partial_[i][j][0], slot.data(), sizeof(int) * slot.size());
-        }
-      }
-    } */
   };
 }
