@@ -9,5 +9,6 @@ a.out
 .DS_Store
 *.o
 main
+cu_test
 
 

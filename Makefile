@@ -1,9 +1,9 @@
-DEBUG = -G -g
+DEBUG =
 
-objects = cu_test.o KernelLauncher.o PatternMatcher.o
+objects = Match.o
 
 all: $(objects)
-	nvcc -arch=compute_86 $(objects) -o main
+	nvcc -std=c++17 $(DEBUG) -arch=compute_86 $(objects) cu_test.cu -o cu_test
 
 %.o: src/%.cu
 	nvcc -std=c++17 $(DEBUG) -arch=compute_86 -dc -I. $< -o $@
