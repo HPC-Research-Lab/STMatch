@@ -1,6 +1,6 @@
 #include <string>
 #include <iostream>
-#include "src/Match.cuh"
+#include "src/gpu_match.cuh"
 
 using namespace std;
 using namespace libra;

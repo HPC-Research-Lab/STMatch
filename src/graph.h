@@ -7,7 +7,7 @@
 #include <vector>
 #include <iostream>
 #include <cassert>
-#include "Config.h"
+#include "config.h"
 
 
 namespace libra {
@@ -57,8 +57,8 @@ namespace libra {
       do {
         std::istringstream sin(line);
         char tmp;
-        graph_node_t v;
-        label_t label;
+        int v;
+        int label;
         sin >> tmp >> v >> label;
         vertex_labels.push_back(label);
         g.nnodes++;
@@ -67,8 +67,8 @@ namespace libra {
       do {
         std::istringstream sin(line);
         char tmp;
-        graph_node_t v1, v2;
-        label_t label;
+        int v1, v2;
+        int label;
         sin >> tmp >> v1 >> v2 >> label;
         adj_list[v1].push_back(v2);
         adj_list[v2].push_back(v1);

@@ -9,7 +9,7 @@
 #include <vector>
 #include <set>
 #include <cassert>
-#include "Config.h"
+#include "config.h"
 
 
 namespace libra {
@@ -31,6 +31,7 @@ namespace libra {
     int vertex_order_[PAT_SIZE];
     int order_map_[PAT_SIZE];
     std::vector<std::vector<int>> L_adj_matrix_;
+    std::vector<std::vector<int>> board;
 
     int length[PAT_SIZE];
     int edge[PAT_SIZE][PAT_SIZE];
@@ -38,9 +39,9 @@ namespace libra {
     PatternPreprocessor(std::string filename) {
       readfile(filename);
       get_matching_order();
-
-      //code motion: get_set_ops();
       get_partial_order();
+      get_set_ops();
+      propagate_partial_order();
 
       // TODO: analyze pattern and fill in pat
       std::cout << "Pattern read complete. Pattern size: " << (int)pat.nnodes << std::endl;
@@ -64,8 +65,8 @@ namespace libra {
       do {
         std::istringstream sin(line);
         char tmp;
-        pattern_node_t v;
-        label_t label;
+        int v;
+        int label;
         sin >> tmp >> v >> label;
         vertex_labels.push_back(label);
         pat.nnodes++;
@@ -75,8 +76,8 @@ namespace libra {
       do {
         std::istringstream sin(line);
         char tmp;
-        pattern_node_t v1, v2;
-        label_t label;
+        int v1, v2;
+        int label;
         sin >> tmp >> v1 >> v2 >> label;
         adj_matrix_[v1][v2] = label;
         adj_matrix_[v2][v1] = label;
@@ -84,6 +85,7 @@ namespace libra {
     }
 
 
+    // TODO: change this to dryadic/cuTS
     void get_matching_order() {
       int root = 0;
       int max_degree = 0;
@@ -114,6 +116,9 @@ namespace libra {
             q.push_back(b);
         }
       }
+
+      for (int i = 0; i < pat.nnodes; i++)
+        order_map_[vertex_order_[i]] = i;
     }
 
     void _permutation(
@@ -135,6 +140,61 @@ namespace libra {
       }
     }
 
+    void get_set_ops() {
+
+      board.resize(pat.nnodes, std::vector<int>(pat.nnodes, 0));
+      board[0][0] = 1;
+
+      for (int i = 1; i < pat.nnodes - 1; i++) {
+        int ops = 0;
+        for (int j = 0; j <= i; j++) {
+          if (adj_matrix_[order_map_[i + 1]][order_map_[j]]) ops |= (1 << (i - j));
+        }
+        board[i][0] = ops;
+        std::cout << ops << std::endl;
+      }
+
+      memset(length, 0, sizeof(length));
+      for (int i = 0; i < pat.nnodes; i++) length[i] = 1;
+
+      memset(pat.set_ops, 0, sizeof(pat.set_ops));
+      for (int j = 0; j < pat.nnodes - 1; j++) {
+        for (int i = pat.nnodes - 2 - j; i >= 0; i--) {
+          // 0 means empty slot in board
+          if (board[i][j] == 0) continue;
+
+          int op1 = board[i][j] & 1;
+          int op2 = (board[i][j] >> 1);
+
+          if (op2 > 0) {
+            bool exist = false;
+            // k starts from 1 to make sure candidate sets are not used for computing non-candidates sets
+            int start_k = ((j == 0 || pat.partial[j][0] == -1) ? 0 : 1);
+            for (int k = start_k; k < length[i - 1]; k++) {
+              if (op2 == board[i - 1][k]) {
+                exist = true;
+                pat.set_ops[i][j] += k;
+                pat.set_ops[i][j] += (op1 << 5);
+                break;
+              }
+            }
+            if (!exist) {
+              pat.set_ops[i][j] += length[i - 1];
+              pat.set_ops[i][j] += (op1 << 5);
+              board[i - 1][length[i - 1]++] = op2;
+            }
+          }
+          else {
+            pat.set_ops[i][j] |= 0x10;
+          }
+        }
+      }
+      // mark the end of slot
+      for (int i = 0; i < pat.nnodes - 1; i++) {
+        pat.set_ops[i][length[i] - 1] |= 0x80;
+      }
+    }
+
     void get_partial_order() {
 
       std::vector<int> p1;
@@ -143,9 +203,6 @@ namespace libra {
       }
       std::vector<std::vector<int>> permute, valid_permute;
       _permutation(permute, p1, 0, pat.nnodes - 1);
-
-      for (int i = 0; i < pat.nnodes; i++)
-        order_map_[vertex_order_[i]] = i;
 
       for (auto pp : permute) {
         std::vector<std::vector<int>> adj_tmp(pat.nnodes);
@@ -208,31 +265,41 @@ namespace libra {
             break;
           }
         }
-        pat.partial[level][0] = pivot;
+        pat.partial[level - 1][0] = pivot;
       }
+    }
 
+    void propagate_partial_order() {
       // propagate partial order of candiate sets to all slots
       memset(edge, 0, sizeof(edge));
-      for (int j = 0; j < PAT_SIZE; j++) edge[0][j] = 1;
-      for (int i = 1; i < pat.nnodes; i++) {
+      for (int i = 0; i < pat.nnodes - 1; i++) {
         int t = pat.partial[i][0];
         if (t != -1) {
-          edge[i][pat.partial[i][0]] = 1;
-          for (int k = 0; k < pat.nnodes; k++) {
-            if (edge[t][k] != 0)
-              edge[i][k] = 1;
+          edge[i][t] = 1;
+          if (t >= 1) {
+            for (int k = 0; k < pat.nnodes; k++) {
+              if (edge[t - 1][k] != 0)
+                edge[i][k] = 1;
+            }
           }
         }
       }
-      for (int i = pat.nnodes - 2; i > 0; i--) {
+      for (int i = pat.nnodes - 3; i >= 0; i--) {
         for (int j = 1; j < length[i]; j++) {
-          int m = 0;
+          int m = -1;
           for (int k = 0; k < length[i + 1]; k++) {
-            if ((pat.set_ops[i + 1][k] & 0xF) == j) {
-              if (edge[m][pat.partial[i + 1][k]]) m = k;
+            if (((pat.set_ops[i + 1][k] & 0xF) == j) && ((pat.set_ops[i + 1][k] & 0x20))) {
+              if (m == -1) m = pat.partial[i + 1][k];
+              else {
+                if (edge[pat.partial[i + 1][k]][m]) m = pat.partial[i + 1][k];
+                else {
+                  m = -1;
+                  break;
+                }
+              }
             }
           }
-          pat.partial[i][j] = (m ? m : -1);
+          if (m < i + 1) pat.partial[i][j] = m;
         }
       }
     }

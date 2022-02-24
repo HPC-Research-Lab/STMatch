@@ -1,4 +1,4 @@
-#include "Match.cuh"
+#include "gpu_match.cuh"
 #include <cuda.h>
 
 namespace libra {
@@ -63,7 +63,8 @@ namespace libra {
   template<typename DATA_T, typename SIZE_T>
   __device__ void intersection(DATA_T* set1, DATA_T* set2, DATA_T* _res, SIZE_T set1_size, SIZE_T set2_size, SIZE_T* res_size, DATA_T ub) {
 
-    __shared__ int pos[32];
+    __shared__ int pos[BLOCK_DIM];
+
     int tid = threadIdx.x;
     int end_pos = 0;
     int loop_end = set1_size - set1_size % warpSize + warpSize;
@@ -97,13 +98,13 @@ namespace libra {
      }
  */
     *res_size = end_pos;
-
   }
 
   template<typename DATA_T, typename SIZE_T>
   __device__ void difference(DATA_T* set1, DATA_T* set2, DATA_T* res, SIZE_T set1_size, SIZE_T set2_size, SIZE_T* res_size, DATA_T ub) {
 
-    __shared__ int pos[32];
+    __shared__ int pos[BLOCK_DIM];
+
     int tid = threadIdx.x;
     int end_pos = 0;
     int loop_end = set1_size - set1_size % warpSize + warpSize;
@@ -190,25 +191,26 @@ namespace libra {
 
             for (pattern_node_t i = 0; i < PAT_SIZE; i++) {
 
-              if (pat->set_ops[level][i] < 0) break;
-
-              pattern_node_t slot_idx = (pat->set_ops[level][i] & 0xF);
-
               // TODO: compute ub based on pattern->partial
               graph_node_t ub = INT_MAX;
-              if (pat->partial[level][i] >= 0) ub = stk->path[pat->partial[level][i]];
+              if (pat->partial[level - 1][i] >= 0) ub = stk->path[pat->partial[level - 1][i]];
 
-              graph_node_t* neighbor = g->rowptr[stk->path[level]] + g->colidx;
-              graph_node_t neighbor_size = (graph_node_t)(g->rowptr[stk->path[level] + 1] - g->rowptr[stk->path[level]]);
+              graph_node_t* neighbor = g->rowptr[stk->path[level - 1]] + g->colidx;
+              graph_node_t neighbor_size = (graph_node_t)(g->rowptr[stk->path[level - 1] + 1] - g->rowptr[stk->path[level - 1]]);
 
-              if (pat->set_ops[level][i] & 0x10) {
+              if (pat->set_ops[level - 1][i] & 0x10) {
 
-                graph_node_t* nb = g->rowptr[stk->path[level - 1]] + g->colidx;
-                graph_node_t nsize = (graph_node_t)(g->rowptr[stk->path[level - 1] + 1] - g->rowptr[stk->path[level - 1]]);
+                graph_node_t* nb = NULL;
+                graph_node_t nsize = 0;
 
+                if (level >= 2) {
+                  nb = g->rowptr[stk->path[level - 2]] + g->colidx;
+                  nsize = (graph_node_t)(g->rowptr[stk->path[level - 2] + 1] - g->rowptr[stk->path[level - 2]]);
+                }
+                // when the second set is empty, the difference function simply checks ub and copy first set to res set.
                 difference(neighbor, nb, &(stk->slot_storage[level][i][0]), neighbor_size, nsize, &(stk->slot_size[level][i]), ub);
 
-                for (pattern_node_t j = level - 2; j >= 0; j--) {
+                for (pattern_node_t j = level - 3; j >= 0; j--) {
                   nb = g->rowptr[stk->path[j]] + g->colidx;
                   nsize = (graph_node_t)(g->rowptr[stk->path[j] + 1] - g->rowptr[stk->path[j]]);
 
@@ -216,15 +218,20 @@ namespace libra {
                 }
               }
               else {
-                if (pat->set_ops[level][i] & 0x20) {
+
+                pattern_node_t slot_idx = (pat->set_ops[level - 1][i] & 0xF);
+
+                if (pat->set_ops[level - 1][i] & 0x20) {
                   intersection(&(stk->slot_storage[level - 1][slot_idx][0]), neighbor, &(stk->slot_storage[level][i][i]), stk->slot_size[level - 1][slot_idx], neighbor_size, &(stk->slot_size[level][i]), ub);
                 }
                 else {
                   difference(&(stk->slot_storage[level - 1][slot_idx][0]), neighbor, &(stk->slot_storage[level][i][i]), stk->slot_size[level - 1][slot_idx], neighbor_size, &(stk->slot_size[level][i]), ub);
                 }
               }
+
+              if (pat->set_ops[level - 1][i] < 0) break;
             }
-          }
+          } //end extend
 
           stk->iter[level] = 0;
         }
@@ -253,7 +260,6 @@ namespace libra {
       }
     }
   }
-
 
   __global__ void _parallel_match(Graph* dev_graph, Pattern* dev_pattern, CallStack* dev_callstack, JobQueue* job_queue) {
 

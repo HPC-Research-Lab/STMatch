@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GraphPreprocessor.h"
+#include "graph.h"
 
 namespace libra {
 

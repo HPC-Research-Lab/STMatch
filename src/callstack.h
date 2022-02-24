@@ -3,7 +3,7 @@
 #include <stdlib.h> 
 #include <string.h>
 #include <stdio.h>
-#include "Config.h"
+#include "config.h"
 
 namespace libra {
 
