@@ -158,7 +158,6 @@ namespace libra {
 
   __device__ void extend(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, graph_node_t level) {
     if (level == 0) {
-
       graph_node_t cur_job, njobs;
 
       // TODO: change to warp
@@ -166,38 +165,15 @@ namespace libra {
         get_job(q, cur_job, njobs);
         // printf("%d %d: %d %d\n", blockIdx.x, threadIdx.x, cur_job, njobs);
         for (size_t i = 0; i < njobs; i++) {
-          stk->slot_storage[0][0][i] = q->n0[cur_job + i];
-          stk->slot_storage[1][0][i] = q->n1[cur_job + i];
+          stk->slot_storage[0][0][i] = q->queue[cur_job + i];
         }
         stk->slot_size[0][0] = njobs;
-        stk->slot_size[1][0] = njobs;
-        stk->iter[0] = 0;
-        stk->iter[1] = 0;
       }
       __syncwarp();
-
-      // init other slots in level 1
-      for (pattern_node_t i = 1; i < PAT_SIZE; i++) {
-
-        if (pat->set_ops[0][i] < 0) break;
-
-        // compute ub based on pattern->partial
-        graph_node_t ub = INT_MAX;
-        if (pat->partial[0][i] >= 0) ub = stk->path[pat->partial[0][i]];
-        graph_node_t* neighbor = &g->colidx[g->rowptr[stk->path[0]]];
-        graph_node_t neighbor_size = (graph_node_t)(g->rowptr[stk->path[0] + 1] - g->rowptr[stk->path[0]]);
-
-        if (pat->set_ops[0][i] & 0x10) {
-          // when the second set is empty, the difference function simply checks ub and copy first set to res set.
-          difference(neighbor, (graph_node_t*)NULL, &(stk->slot_storage[1][i][0]), neighbor_size, 0, &(stk->slot_size[1][i]), ub);
-        }
-      }
     }
-    else if (level > 1) {
+    else {
 
       for (pattern_node_t i = 0; i < PAT_SIZE; i++) {
-
-        if (pat->set_ops[level - 1][i] < 0) break;
 
         // compute ub based on pattern->partial
         graph_node_t ub = INT_MAX;
@@ -235,8 +211,9 @@ namespace libra {
             difference(&(stk->slot_storage[level - 1][slot_idx][0]), neighbor, &(stk->slot_storage[level][i][i]), stk->slot_size[level - 1][slot_idx], neighbor_size, &(stk->slot_size[level][i]), ub);
           }
         }
+
+        if (pat->set_ops[level - 1][i] < 0) break;
       }
-      stk->iter[level] = 0;
     }
   }
 
@@ -249,8 +226,10 @@ namespace libra {
         if (stk->slot_size[level][0] == 0) {
 
           extend(g, pat, stk, q, level);
-          if (level == 0 && stk->slot_size[0][0] == 0) break;
 
+          if (level == 0 && stk->slot_size[level][0] == 0) break;
+
+          stk->iter[level] = 0;
         }
         if (stk->iter[level] < stk->slot_size[level][0]) {
           stk->path[level] = stk->slot_storage[level][0][stk->iter[level]];
@@ -258,19 +237,15 @@ namespace libra {
         }
         else {
           stk->slot_size[level][0] = 0;
-          level--;
           if (level > 0) {
+            level--;
             if (threadIdx.x % WARP_SIZE == 0) stk->iter[level]++;
             __syncwarp();
-          }
-          else {
-            stk->iter[0] = 0;
-            stk->slot_size[0][0] = 0;
           }
         }
       }
       else if (level == pat->nnodes - 1) {
-        // assume pat->nnodes >= 3 here
+
         // TODO: we can save the storage of sets for the last level
         extend(g, pat, stk, q, level);
         if (threadIdx.x % WARP_SIZE == 0) {
@@ -314,7 +289,6 @@ namespace libra {
     }
 
     if (threadIdx.x % WARP_SIZE == 0) {
-      printf("%ld\n", count[local_wid]);
       res[global_wid] = count[local_wid];
     }
   }
