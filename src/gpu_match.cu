@@ -3,8 +3,6 @@
 
 namespace libra {
 
-  // TODO: implement intersection and difference
-
   template<typename DATA_T, typename SIZE_T>
   __device__
     inline bool lower_bound_exist(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
