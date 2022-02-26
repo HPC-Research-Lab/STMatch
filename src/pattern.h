@@ -151,7 +151,6 @@ namespace libra {
           if (adj_matrix_[order_map_[i + 1]][order_map_[j]]) ops |= (1 << (i - j));
         }
         board[i][0] = ops;
-        std::cout << ops << std::endl;
       }
 
       memset(length, 0, sizeof(length));
@@ -169,7 +168,7 @@ namespace libra {
           if (op2 > 0) {
             bool exist = false;
             // k starts from 1 to make sure candidate sets are not used for computing non-candidates sets
-            int start_k = ((j == 0 || pat.partial[j][0] == -1) ? 0 : 1);
+            int start_k = ((j == 0 || pat.partial[i][0] == -1) ? 0 : 1);
             for (int k = start_k; k < length[i - 1]; k++) {
               if (op2 == board[i - 1][k]) {
                 exist = true;

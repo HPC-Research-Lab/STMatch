@@ -41,7 +41,7 @@ namespace libra {
 
       Graph* gpu_g;
       cudaMalloc(&gpu_g, sizeof(Graph));
-      cudaMemcpy(gpu_g, &g, sizeof(Graph), cudaMemcpyHostToDevice);
+      cudaMemcpy(gpu_g, &gcopy, sizeof(Graph), cudaMemcpyHostToDevice);
       return gpu_g;
     }
 
