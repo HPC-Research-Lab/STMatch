@@ -27,7 +27,7 @@ namespace libra {
   }
 
 
-  __device__ void prefix_sum(int* _input) {
+  __device__ inline void prefix_sum(int* _input) {
 
     int thid = threadIdx.x % WARP_SIZE;
     int offset = 1;
@@ -215,6 +215,7 @@ namespace libra {
         if (pat->set_ops[level - 1][i] < 0) break;
       }
     }
+    stk->iter[level] = 0;
   }
 
   __device__ void match(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, size_t* count) {
@@ -226,10 +227,7 @@ namespace libra {
         if (stk->slot_size[level][0] == 0) {
 
           extend(g, pat, stk, q, level);
-
           if (level == 0 && stk->slot_size[level][0] == 0) break;
-
-          stk->iter[level] = 0;
         }
         if (stk->iter[level] < stk->slot_size[level][0]) {
           stk->path[level] = stk->slot_storage[level][0][stk->iter[level]];
@@ -282,14 +280,17 @@ namespace libra {
     }
     __syncwarp();
 
+    auto start = clock64();
     while (true) {
       match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid]);
       break;
       // TODO: load balance
     }
+    auto stop = clock64();
 
     if (threadIdx.x % WARP_SIZE == 0) {
       res[global_wid] = count[local_wid];
+      // printf("%ld\n", stop - start);
     }
   }
 }

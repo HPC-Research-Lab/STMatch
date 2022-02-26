@@ -1,4 +1,4 @@
-DEBUG = -O2
+DEBUG = 
 
 objects = gpu_match.o
 
@@ -9,4 +9,4 @@ all: $(objects)
 	nvcc -std=c++17 $(DEBUG) -arch=compute_86 -dc -I. $< -o $@
 
 clean:
-	rm -f *.o main
+	rm -f *.o cu_test
