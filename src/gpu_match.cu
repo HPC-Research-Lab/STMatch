@@ -173,6 +173,8 @@ namespace libra {
 
       for (pattern_node_t i = 0; i < PAT_SIZE; i++) {
 
+        if (pat->set_ops[level - 1][i] < 0) break;
+        
         // compute ub based on pattern->partial
         graph_node_t ub = INT_MAX;
         if (pat->partial[level - 1][i] >= 0) ub = stk->path[pat->partial[level - 1][i]];
@@ -209,8 +211,6 @@ namespace libra {
             difference(&(stk->slot_storage[level - 1][slot_idx][0]), neighbor, &(stk->slot_storage[level][i][i]), stk->slot_size[level - 1][slot_idx], neighbor_size, &(stk->slot_size[level][i]), ub);
           }
         }
-
-        if (pat->set_ops[level - 1][i] < 0) break;
       }
     }
     stk->iter[level] = 0;

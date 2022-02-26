@@ -190,7 +190,7 @@ namespace libra {
       }
       // mark the end of slot
       for (int i = 0; i < pat.nnodes - 1; i++) {
-        pat.set_ops[i][length[i] - 1] |= 0x80;
+        pat.set_ops[i][length[i]] |= 0x80;
       }
     }
 
