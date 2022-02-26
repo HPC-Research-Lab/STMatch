@@ -5,7 +5,8 @@
 namespace libra {
 
   typedef struct {
-    graph_node_t* queue;
+    graph_node_t* n0;
+    graph_node_t* n1;
     graph_node_t length;
     graph_node_t cur;
     int mutex = 0;
@@ -16,17 +17,45 @@ namespace libra {
     JobQueue q;
 
 
-    JobQueuePreprocessor(Graph& g) {
-      q.queue = new graph_node_t[g.nnodes];
-      for (graph_node_t i = 0; i < g.nnodes; i++) q.queue[i] = i;
-      q.length = g.nnodes;
+    JobQueuePreprocessor(Graph& g, Pattern& p) {
+      std::vector<graph_node_t> vr, vc;
+      if (p.partial[0][0] == 0) {
+        for (graph_node_t r = 0; r < g.nnodes; r++) {
+          for (graph_edge_t j = g.rowptr[r]; j < g.rowptr[r + 1]; j++) {
+            graph_node_t c = g.colidx[j];
+            if (r > c) {
+              vr.push_back(r);
+              vc.push_back(c);
+            }
+          }
+        }
+      }
+      else {
+        for (graph_node_t r = 0; r < g.nnodes; r++) {
+          for (graph_edge_t j = g.rowptr[r]; j < g.rowptr[r + 1]; j++) {
+            graph_node_t c = g.colidx[j];
+            vr.push_back(r);
+            vc.push_back(c);
+          }
+        }
+      }
+
+      q.n0 = new graph_node_t[vr.size()];
+      q.n1 = new graph_node_t[vr.size()];
+      for (int i = 0; i < vr.size(); i++) {
+        q.n0[i] = vr[i];
+        q.n1[i] = vc[i];
+      }
+      q.length = vr.size();
       q.cur = 0;
     }
 
     JobQueue* to_gpu() {
       JobQueue qcopy = q;
-      cudaMalloc(&qcopy.queue, sizeof(graph_node_t) * q.length);
-      cudaMemcpy(qcopy.queue, q.queue, sizeof(graph_node_t) * q.length, cudaMemcpyHostToDevice);
+      cudaMalloc(&qcopy.n0, sizeof(graph_node_t) * q.length);
+      cudaMemcpy(qcopy.n0, q.n0, sizeof(graph_node_t) * q.length, cudaMemcpyHostToDevice);
+      cudaMalloc(&qcopy.n1, sizeof(graph_node_t) * q.length);
+      cudaMemcpy(qcopy.n1, q.n1, sizeof(graph_node_t) * q.length, cudaMemcpyHostToDevice);
 
       JobQueue* gpu_q;
       cudaMalloc(&gpu_q, sizeof(JobQueue));
