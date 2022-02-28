@@ -70,28 +70,32 @@ namespace libra {
 
     int end_pos = 0;
 
-    still_loop[wid] = true;
 
-    for (int idx = tid; (idx < (((set1_size - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
-      pos[wid][tid] = 0;
-      pos[wid][WARP_SIZE] = 0;
-      if (idx < set1_size && set1[idx] < ub) {
-        if (lower_bound_exist(set2, set2_size, set1[idx])) {
-          pos[wid][tid] = 1;
+    if (set1_size > 0) {
+      still_loop[wid] = true;
+
+      for (int idx = tid; (idx < (((set1_size - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
+        pos[wid][tid] = 0;
+        pos[wid][WARP_SIZE] = 0;
+        if (idx < set1_size && set1[idx] < ub) {
+          if (lower_bound_exist(set2, set2_size, set1[idx])) {
+            pos[wid][tid] = 1;
+          }
         }
-      }
-      else {
-        still_loop[wid] = false;
-      }
-      __syncwarp();
+        else {
+          still_loop[wid] = false;
+        }
+        __syncwarp();
 
-      prefix_sum(&pos[wid][0]);
+        prefix_sum(&pos[wid][0]);
 
-      if (pos[wid][tid + 1] > pos[wid][tid]) {
-        _res[end_pos + pos[wid][tid]] = set1[idx];
+        if (pos[wid][tid + 1] > pos[wid][tid]) {
+          _res[end_pos + pos[wid][tid]] = set1[idx];
+        }
+        end_pos += pos[wid][WARP_SIZE];
       }
-      end_pos += pos[wid][WARP_SIZE];
     }
+
 
     *res_size = end_pos;
   }
@@ -154,7 +158,7 @@ namespace libra {
     unlock(&(q->mutex));
   }
 
-  __device__ void extend(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, graph_node_t level) {
+  __device__ void extend(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, pattern_node_t level) {
     if (level == 0) {
       graph_node_t cur_job, njobs;
 
@@ -177,14 +181,26 @@ namespace libra {
         if (pat->set_ops[level - 1][i] < 0) break;
 
         // compute ub based on pattern->partial
-        graph_node_t ub = -1;
-        if (pat->partial[level - 1][i] > 0) {
-          for (int k = 0; k < PAT_SIZE; k++) {
-            if ((pat->partial[level - 1][i] & (1 << k)) && (ub < stk->path[k])) ub = stk->path[k];
+        graph_node_t ub = INT_MAX;
+        assert(level >= 1);
+        if (i == 0) {
+          ub = INT_MAX;
+          if (pat->partial[level - 1][i] != 0) {
+            for (pattern_node_t k = 0; k <= level - 1; k++) {
+              if ((pat->partial[level - 1][0] & (1 << k)) && (ub > stk->path[k])) ub = stk->path[k];
+            }
           }
         }
-        if (ub == -1) ub = INT_MAX;
-        
+        else {
+          ub = -1;
+          if (pat->partial[level - 1][i] != 0) {
+            for (pattern_node_t k = 0; k <= level - 1; k++) {
+              if ((pat->partial[level - 1][i] & (1 << k)) && (ub < stk->path[k])) ub = stk->path[k];
+            }
+          }
+          if (ub == -1) ub = INT_MAX;
+        }
+
         graph_node_t* neighbor = &g->colidx[g->rowptr[stk->path[level - 1]]];
         graph_node_t neighbor_size = (graph_node_t)(g->rowptr[stk->path[level - 1] + 1] - g->rowptr[stk->path[level - 1]]);
 
@@ -212,10 +228,10 @@ namespace libra {
           pattern_node_t slot_idx = (pat->set_ops[level - 1][i] & 0xF);
 
           if (pat->set_ops[level - 1][i] & 0x20) {
-            intersection(&(stk->slot_storage[level - 1][slot_idx][0]), neighbor, &(stk->slot_storage[level][i][i]), stk->slot_size[level - 1][slot_idx], neighbor_size, &(stk->slot_size[level][i]), ub);
+            intersection(&(stk->slot_storage[level - 1][slot_idx][0]), neighbor, &(stk->slot_storage[level][i][0]), stk->slot_size[level - 1][slot_idx], neighbor_size, &(stk->slot_size[level][i]), ub);
           }
           else {
-            difference(&(stk->slot_storage[level - 1][slot_idx][0]), neighbor, &(stk->slot_storage[level][i][i]), stk->slot_size[level - 1][slot_idx], neighbor_size, &(stk->slot_size[level][i]), ub);
+            difference(&(stk->slot_storage[level - 1][slot_idx][0]), neighbor, &(stk->slot_storage[level][i][0]), stk->slot_size[level - 1][slot_idx], neighbor_size, &(stk->slot_size[level][i]), ub);
           }
         }
       }
@@ -224,7 +240,7 @@ namespace libra {
   }
 
   __device__ void match(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, size_t* count) {
-    graph_node_t level = 0;
+    pattern_node_t level = 0;
 
     while (true) {
 
@@ -261,7 +277,8 @@ namespace libra {
             level--;
             if (threadIdx.x % WARP_SIZE == 0) stk->iter[level]++;
             __syncwarp();
-          } else if (level > 0) level--;
+          }
+          else if (level > 0) level--;
         }
       }
       else if (level == pat->nnodes - 1) {

@@ -167,9 +167,8 @@ namespace libra {
 
           if (op2 > 0) {
             bool exist = false;
-            // k starts from 1 to make sure candidate sets are not used for computing non-candidates sets
-            int start_k = ((j == 0 || pat.partial[i][0] == -1) ? 0 : 1);
-            for (int k = start_k; k < length[i - 1]; k++) {
+            // k starts from 1 to make sure candidate sets are not used for computing slots 
+            for (int k = 1; k < length[i - 1]; k++) {
               if (op2 == board[i - 1][k]) {
                 exist = true;
                 pat.set_ops[i][j] += k;
@@ -255,21 +254,17 @@ namespace libra {
       }
 
       memset(pat.partial, 0, sizeof(pat.partial));
-      int pivot = -1;
       for (int level = 1; level < pat.nnodes; level++) {
-        pivot = -1;
         for (int j = level - 1; j >= 0; j--) {
           if (L_adj_matrix_[j][level] == 1) {
-            pivot = j;
-            break;
+            pat.partial[level - 1][0] |= (1 << j);
           }
         }
-        pat.partial[level - 1][0] = (1 << pivot);
       }
     }
 
     int bitidx(bitarray32 a) {
-      for (int i=0; i<32; i++) {
+      for (int i = 0; i < 32; i++) {
         if (a & (1 << i)) return i;
       }
       return -1;
@@ -277,29 +272,16 @@ namespace libra {
 
     void propagate_partial_order() {
       // propagate partial order of candiate sets to all slots
-      memset(edge, 0, sizeof(edge));
-      for (int i = 0; i < pat.nnodes - 1; i++) {
-        int t = bitidx(pat.partial[i][0]);
-        if (t != -1) {
-          edge[i][t] = 1;
-          if (t >= 1) {
-            for (int k = 0; k < pat.nnodes; k++) {
-              if (edge[t - 1][k] != 0)
-                edge[i][k] = 1;
-            }
-          }
-        }
-      }
       for (int i = pat.nnodes - 3; i >= 0; i--) {
         for (int j = 1; j < length[i]; j++) {
           int m = 0;
           // for all slots in the next level, 
           for (int k = 0; k < length[i + 1]; k++) {
             // if the slot depends on the current slot and the operation is intersection
-            if (((pat.set_ops[i + 1][k] & 0xF) == j) && ((pat.set_ops[i + 1][k] & 0x20))) {
+            if ((pat.set_ops[i + 1][k] & 0xF) == j) {
               // we add the upper bound of that slot to the current slot
               // the upper bound has to be vertex above level i 
-              m |= (pat.partial[i + 1][k] & ((1 << (i+1) -1 )));
+              m |= (pat.partial[i + 1][k] & ((1 << (i + 1) - 1)));
             }
           }
           pat.partial[i][j] = m;
