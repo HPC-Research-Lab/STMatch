@@ -168,7 +168,8 @@ namespace libra {
           if (op2 > 0) {
             bool exist = false;
             // k starts from 1 to make sure candidate sets are not used for computing slots 
-            for (int k = 1; k < length[i - 1]; k++) {
+            int startk = ((pat.partial[i-1][0] == 0) ? 1 : 0);
+            for (int k = startk; k < length[i - 1]; k++) {
               if (op2 == board[i - 1][k]) {
                 exist = true;
                 pat.set_ops[i][j] += k;
