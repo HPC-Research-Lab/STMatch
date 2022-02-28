@@ -177,8 +177,14 @@ namespace libra {
         if (pat->set_ops[level - 1][i] < 0) break;
 
         // compute ub based on pattern->partial
-        graph_node_t ub = INT_MAX;
-        if (pat->partial[level - 1][i] >= 0) ub = stk->path[pat->partial[level - 1][i]];
+        graph_node_t ub = -1;
+        if (pat->partial[level - 1][i] > 0) {
+          for (int k = 0; k < PAT_SIZE; k++) {
+            if ((pat->partial[level - 1][i] & (1 << k)) && (ub < stk->path[k])) ub = stk->path[k];
+          }
+        }
+        if (ub == -1) ub = INT_MAX;
+        
         graph_node_t* neighbor = &g->colidx[g->rowptr[stk->path[level - 1]]];
         graph_node_t neighbor_size = (graph_node_t)(g->rowptr[stk->path[level - 1] + 1] - g->rowptr[stk->path[level - 1]]);
 
