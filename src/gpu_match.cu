@@ -255,7 +255,7 @@ namespace libra {
           stk->path[level] = stk->slot_storage[level][0][stk->iter[level]];
           level++;
         }
-        else if ((level == 1) && (stk->slot_size[1][0] ==0 || stk->iter[1] < stk->slot_size[1][0]) && (stk->iter[0] < stk->slot_size[0][0])) {
+        else if ((level == 1) && (stk->iter[1] < stk->slot_size[1][0]) && (stk->iter[0] < stk->slot_size[0][0])) {
           stk->path[1] = stk->slot_storage[0][0][stk->iter[0] + JOB_CHUNK_SIZE];
           level++;
         }
