@@ -148,7 +148,7 @@ namespace libra {
       for (int i = 1; i < pat.nnodes - 1; i++) {
         int ops = 0;
         for (int j = 0; j <= i; j++) {
-          if (adj_matrix_[order_map_[i + 1]][order_map_[j]]) ops |= (1 << (i - j));
+          if (adj_matrix_[vertex_order_[i + 1]][vertex_order_[j]]) ops |= (1 << (i - j));
         }
         board[i][0] = ops;
       }
@@ -168,7 +168,7 @@ namespace libra {
           if (op2 > 0) {
             bool exist = false;
             // k starts from 1 to make sure candidate sets are not used for computing slots 
-            int startk = ((pat.partial[i-1][0] == 0) ? 1 : 0);
+            int startk = ((pat.partial[i - 1][0] == 0) ? 0 : 1);
             for (int k = startk; k < length[i - 1]; k++) {
               if (op2 == board[i - 1][k]) {
                 exist = true;
@@ -203,39 +203,33 @@ namespace libra {
       std::vector<std::vector<int>> permute, valid_permute;
       _permutation(permute, p1, 0, pat.nnodes - 1);
 
-      for (auto pp : permute) {
-        std::vector<std::vector<int>> adj_tmp(pat.nnodes);
+      for (auto& pp : permute) {
+        std::vector<std::set<int>> adj_tmp(pat.nnodes);
         for (int i = 0; i < pat.nnodes; i++) {
           std::set<int> tp;
           for (int j = 0; j < pat.nnodes; j++) {
-            if (adj_matrix_[i][j] > 0) {
-              tp.insert(pp[j]);
-            }
-            adj_tmp[pp[i]] = std::vector<int>(tp.begin(), tp.end());
+            if (adj_matrix_[i][j] == 0) continue;
+            tp.insert(pp[j]);
           }
-          bool valid = true;
-          for (int i = 0; i < pat.nnodes; i++) {
-            int d = 0;
-            for (int j = 0; j < pat.nnodes; j++) {
-              if (adj_matrix_[i][j] > 0) d++;
+          adj_tmp[pp[i]] = tp;
+        }
+        bool valid = true;
+        for (int i = 0; i < pat.nnodes; i++) {
+          bool equal = true;
+          int c = 0;
+          for (int j=0; j<pat.nnodes; j++) {
+            if (adj_matrix_[i][j] == 1) {
+              c++;
+              if (adj_tmp[i].find(j) == adj_tmp[i].end()) equal = false;
             }
-            if (d == adj_tmp[i].size()) {
-              for (int j : adj_tmp[i]) {
-                if (adj_matrix_[i][j] <= 0) {
-                  valid = false;
-                  break;
-                }
-              }
-            }
-            else {
-              valid = false;
-            }
-            if (!valid) break;
           }
-          if (valid) {
-            valid_permute.push_back(pp);
+          if (!equal || c != adj_tmp[i].size()) {
+            valid = false;
+            break;
           }
         }
+        if (valid)
+          valid_permute.push_back(pp);
       }
 
       L_adj_matrix_.resize(pat.nnodes, std::vector<int>(pat.nnodes, 0));

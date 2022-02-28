@@ -53,6 +53,7 @@ namespace libra {
         _input[bi] += t;
       }
     }
+    __syncwarp();
 
     if (thid == WARP_SIZE - 1)
       _input[WARP_SIZE] = _input[WARP_SIZE - 1] + last_element;
@@ -63,6 +64,7 @@ namespace libra {
   __device__ void intersection(DATA_T* set1, DATA_T* set2, DATA_T* _res, SIZE_T set1_size, SIZE_T set2_size, SIZE_T* res_size, DATA_T ub) {
 
     __shared__ int pos[NWARPS_PER_BLOCK][33];
+    __shared__ DATA_T res_tmp[NWARPS_PER_BLOCK][32];
     __shared__ bool still_loop[NWARPS_PER_BLOCK];
 
     int wid = threadIdx.x / WARP_SIZE;
@@ -71,7 +73,7 @@ namespace libra {
     int end_pos = 0;
 
     if (set1_size > 0) {
-      
+
       still_loop[wid] = true;
 
       for (int idx = tid; (idx < (((set1_size - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
@@ -90,19 +92,22 @@ namespace libra {
         prefix_sum(&pos[wid][0]);
 
         if (pos[wid][tid + 1] > pos[wid][tid]) {
-          _res[end_pos + pos[wid][tid]] = set1[idx];
+          res_tmp[wid][pos[wid][tid]] = set1[idx];
+        }
+        __syncwarp();
+        if (tid < pos[wid][WARP_SIZE]) {
+          _res[end_pos + tid] = res_tmp[wid][tid];
         }
         end_pos += pos[wid][WARP_SIZE];
       }
     }
-
-
     *res_size = end_pos;
   }
 
   template<typename DATA_T, typename SIZE_T>
   __device__ void difference(DATA_T* set1, DATA_T* set2, DATA_T* _res, SIZE_T set1_size, SIZE_T set2_size, SIZE_T* res_size, DATA_T ub) {
     __shared__ int pos[NWARPS_PER_BLOCK][33];
+    __shared__ DATA_T res_tmp[NWARPS_PER_BLOCK][32];
     __shared__ bool still_loop[NWARPS_PER_BLOCK];
 
     int wid = threadIdx.x / WARP_SIZE;
@@ -132,9 +137,12 @@ namespace libra {
 
       prefix_sum(&pos[wid][0]);
 
-      // TODO: if _res and set1 are the same
       if (pos[wid][tid + 1] > pos[wid][tid]) {
-        _res[end_pos + pos[wid][tid]] = set1[idx];
+        res_tmp[wid][pos[wid][tid]] = set1[idx];
+      }
+      __syncwarp();
+      if (tid < pos[wid][WARP_SIZE]) {
+        _res[end_pos + tid] = res_tmp[wid][tid];
       }
       end_pos += pos[wid][WARP_SIZE];
     }
