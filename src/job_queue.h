@@ -19,7 +19,7 @@ namespace libra {
 
     JobQueuePreprocessor(Graph& g, Pattern& p) {
       std::vector<graph_node_t> vr, vc;
-      if (p.partial[0][0] == 0) {
+      if (p.partial[0][0] == 1) {
         for (graph_node_t r = 0; r < g.nnodes; r++) {
           for (graph_node_t j = g.rowptr[r]; j < g.rowptr[r + 1]; j++) {
             graph_node_t c = g.colidx[j];

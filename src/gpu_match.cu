@@ -70,8 +70,8 @@ namespace libra {
 
     int end_pos = 0;
 
-
     if (set1_size > 0) {
+      
       still_loop[wid] = true;
 
       for (int idx = tid; (idx < (((set1_size - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
@@ -255,7 +255,7 @@ namespace libra {
           stk->path[level] = stk->slot_storage[level][0][stk->iter[level]];
           level++;
         }
-        else if ((level == 1) && (stk->iter[1] < stk->slot_size[1][0]) && (stk->iter[0] < stk->slot_size[0][0])) {
+        else if ((level == 1) && (stk->slot_size[1][0] ==0 || stk->iter[1] < stk->slot_size[1][0]) && (stk->iter[0] < stk->slot_size[0][0])) {
           stk->path[1] = stk->slot_storage[0][0][stk->iter[0] + JOB_CHUNK_SIZE];
           level++;
         }
