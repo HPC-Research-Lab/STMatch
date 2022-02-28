@@ -18,7 +18,7 @@ namespace libra {
 
     pattern_node_t nnodes = 0;
     label_t vertex_label[PAT_SIZE];
-    pattern_node_t partial[PAT_SIZE][PAT_SIZE];
+    bitarray32 partial[PAT_SIZE][PAT_SIZE];
     set_op_t set_ops[PAT_SIZE][PAT_SIZE];
   } Pattern;
 
@@ -254,7 +254,7 @@ namespace libra {
         valid_permute = stabilized_aut;
       }
 
-      memset(pat.partial, -1, sizeof(pat.partial));
+      memset(pat.partial, 0, sizeof(pat.partial));
       int pivot = -1;
       for (int level = 1; level < pat.nnodes; level++) {
         pivot = -1;
@@ -264,15 +264,22 @@ namespace libra {
             break;
           }
         }
-        pat.partial[level - 1][0] = pivot;
+        pat.partial[level - 1][0] = (1 << pivot);
       }
+    }
+
+    int bitidx(bitarray32 a) {
+      for (int i=0; i<32; i++) {
+        if (a & (1 << i)) return i;
+      }
+      return -1;
     }
 
     void propagate_partial_order() {
       // propagate partial order of candiate sets to all slots
       memset(edge, 0, sizeof(edge));
       for (int i = 0; i < pat.nnodes - 1; i++) {
-        int t = pat.partial[i][0];
+        int t = bitidx(pat.partial[i][0]);
         if (t != -1) {
           edge[i][t] = 1;
           if (t >= 1) {
@@ -285,20 +292,17 @@ namespace libra {
       }
       for (int i = pat.nnodes - 3; i >= 0; i--) {
         for (int j = 1; j < length[i]; j++) {
-          int m = -1;
+          int m = 0;
+          // for all slots in the next level, 
           for (int k = 0; k < length[i + 1]; k++) {
+            // if the slot depends on the current slot and the operation is intersection
             if (((pat.set_ops[i + 1][k] & 0xF) == j) && ((pat.set_ops[i + 1][k] & 0x20))) {
-              if (m == -1) m = pat.partial[i + 1][k];
-              else {
-                if (edge[pat.partial[i + 1][k]][m]) m = pat.partial[i + 1][k];
-                else {
-                  m = -1;
-                  break;
-                }
-              }
+              // we add the upper bound of that slot to the current slot
+              // the upper bound has to be vertex above level i 
+              m |= (pat.partial[i + 1][k] & ((1 << (i+1) -1 )));
             }
           }
-          if (m < i + 1) pat.partial[i][j] = m;
+          pat.partial[i][j] = m;
         }
       }
     }
