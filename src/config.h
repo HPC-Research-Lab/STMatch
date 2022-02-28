@@ -7,6 +7,7 @@ namespace libra {
   typedef char pattern_node_t;
   typedef unsigned char label_t;
   typedef char set_op_t;
+  typedef int bitarray32;
 
   inline constexpr size_t PAT_SIZE = 8;
   inline constexpr size_t GRAPH_DEGREE = 4096;
