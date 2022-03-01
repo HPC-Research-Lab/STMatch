@@ -12,6 +12,8 @@ namespace libra {
   inline constexpr size_t PAT_SIZE = 8;
   inline constexpr size_t GRAPH_DEGREE = 4096;
 
+  inline constexpr int NBUF_SIZE = 64;
+
   inline constexpr int GRID_DIM = 40;
   inline constexpr int BLOCK_DIM = 1024;
   inline constexpr int WARP_SIZE = 32;

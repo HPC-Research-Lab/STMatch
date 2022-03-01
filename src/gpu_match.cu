@@ -65,6 +65,7 @@ namespace libra {
 
     __shared__ int pos[NWARPS_PER_BLOCK][33];
     __shared__ bool still_loop[NWARPS_PER_BLOCK];
+    __shared__ DATA_T buffer[NWARPS_PER_BLOCK][NBUF_SIZE];
 
     int wid = threadIdx.x / WARP_SIZE;
     int tid = threadIdx.x % WARP_SIZE;
@@ -73,13 +74,39 @@ namespace libra {
 
     if (set1_size > 0) {
 
-      still_loop[wid] = true;
+      DATA_T* set2_buf = set2;
 
+      if (set2_size < NBUF_SIZE) {
+        set2_buf = &(buffer[wid][0]);
+
+        still_loop[wid] = true;
+
+        SIZE_T new_size = -1;
+
+        for (int idx = tid; (idx < (((set2_size - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
+          if (idx < set2_size && set2[idx] < ub) {
+            set2_buf[idx] = set2[idx];
+            new_size = idx;
+          }
+          else {
+            still_loop[wid] = false;
+          }
+        }
+        __syncwarp();
+
+        for (int i = 16; i > 0; i >>= 1)
+          new_size = max(new_size, __shfl_down_sync(0xffffffff, new_size, i));
+
+        new_size = __shfl_sync(0xffffffff, new_size, 0);
+        set2_size = new_size + 1;
+      }
+
+      still_loop[wid] = true;
       for (int idx = tid; (idx < (((set1_size - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
         pos[wid][tid] = 0;
         pos[wid][WARP_SIZE] = 0;
         if (idx < set1_size && set1[idx] < ub) {
-          if (lower_bound_exist(set2, set2_size, set1[idx])) {
+          if (lower_bound_exist(set2_buf, set2_size, set1[idx])) {
             pos[wid][tid] = 1;
           }
         }
@@ -108,6 +135,8 @@ namespace libra {
   __device__ void difference(DATA_T* set1, DATA_T* set2, DATA_T* _res, SIZE_T set1_size, SIZE_T set2_size, SIZE_T* res_size, DATA_T ub) {
     __shared__ int pos[NWARPS_PER_BLOCK][33];
     __shared__ bool still_loop[NWARPS_PER_BLOCK];
+    __shared__ DATA_T buffer[NWARPS_PER_BLOCK][NBUF_SIZE];
+
 
     int wid = threadIdx.x / WARP_SIZE;
     int tid = threadIdx.x % WARP_SIZE;
@@ -116,12 +145,41 @@ namespace libra {
 
     still_loop[wid] = true;
 
+    DATA_T* set2_buf = set2;
+
+    if (set2_size < NBUF_SIZE) {
+
+      set2_buf = &(buffer[wid][0]);
+
+      still_loop[wid] = true;
+
+      SIZE_T new_size = -1;
+
+      for (int idx = tid; (idx < (((set2_size - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
+        if (idx < set2_size) {
+          set2_buf[idx] = set2[idx];
+          new_size = idx;
+        }
+        else {
+          still_loop[wid] = false;
+        }
+      }
+      __syncwarp();
+
+      for (int i = 16; i > 0; i >>= 1)
+        new_size = max(new_size, __shfl_down_sync(0xffffffff, new_size, i));
+
+      new_size = __shfl_sync(0xffffffff, new_size, 0);
+      set2_size = new_size + 1;
+    }
+
+    still_loop[wid] = true;
     for (int idx = tid; (idx < (((set1_size - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
       pos[wid][tid] = 0;
       pos[wid][WARP_SIZE] = 0;
       if (idx < set1_size && set1[idx] < ub) {
         if (set2 != NULL) {
-          if (!lower_bound_exist(set2, set2_size, set1[idx])) {
+          if (!lower_bound_exist(set2_buf, set2_size, set1[idx])) {
             pos[wid][tid] = 1;
           }
         }
