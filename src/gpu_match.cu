@@ -64,7 +64,6 @@ namespace libra {
   __device__ void intersection(DATA_T* set1, DATA_T* set2, DATA_T* _res, SIZE_T set1_size, SIZE_T set2_size, SIZE_T* res_size, DATA_T ub) {
 
     __shared__ int pos[NWARPS_PER_BLOCK][33];
-    __shared__ DATA_T res_tmp[NWARPS_PER_BLOCK][32];
     __shared__ bool still_loop[NWARPS_PER_BLOCK];
 
     int wid = threadIdx.x / WARP_SIZE;
@@ -91,12 +90,13 @@ namespace libra {
 
         prefix_sum(&pos[wid][0]);
 
+        DATA_T res_tmp;
         if (pos[wid][tid + 1] > pos[wid][tid]) {
-          res_tmp[wid][pos[wid][tid]] = set1[idx];
+          res_tmp = set1[idx];
         }
         __syncwarp();
-        if (tid < pos[wid][WARP_SIZE]) {
-          _res[end_pos + tid] = res_tmp[wid][tid];
+        if (pos[wid][tid + 1] > pos[wid][tid]) {
+          _res[end_pos + pos[wid][tid]] = res_tmp;
         }
         end_pos += pos[wid][WARP_SIZE];
       }
@@ -107,7 +107,6 @@ namespace libra {
   template<typename DATA_T, typename SIZE_T>
   __device__ void difference(DATA_T* set1, DATA_T* set2, DATA_T* _res, SIZE_T set1_size, SIZE_T set2_size, SIZE_T* res_size, DATA_T ub) {
     __shared__ int pos[NWARPS_PER_BLOCK][33];
-    __shared__ DATA_T res_tmp[NWARPS_PER_BLOCK][32];
     __shared__ bool still_loop[NWARPS_PER_BLOCK];
 
     int wid = threadIdx.x / WARP_SIZE;
@@ -137,12 +136,13 @@ namespace libra {
 
       prefix_sum(&pos[wid][0]);
 
+      DATA_T res_tmp;
       if (pos[wid][tid + 1] > pos[wid][tid]) {
-        res_tmp[wid][pos[wid][tid]] = set1[idx];
+        res_tmp = set1[idx];
       }
       __syncwarp();
-      if (tid < pos[wid][WARP_SIZE]) {
-        _res[end_pos + tid] = res_tmp[wid][tid];
+      if (pos[wid][tid + 1] > pos[wid][tid]) {
+        _res[end_pos + pos[wid][tid]] = res_tmp;
       }
       end_pos += pos[wid][WARP_SIZE];
     }
