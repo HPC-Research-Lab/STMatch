@@ -48,8 +48,13 @@ namespace libra {
     // TODO: dryadic graph format 
 
     void readfile(std::string& filename) {
+      //read_lg_file(filename);
+      read_bin_file(filename);
+ 
+    }
 
-      std::ifstream fin(filename);
+    void read_lg_file(std::string& filename){
+       std::ifstream fin(filename);
       std::string line;
       while (std::getline(fin, line) && (line[0] == '#'));
       g.nnodes = 0;
@@ -77,6 +82,9 @@ namespace libra {
       assert(vertex_labels.size() == g.nnodes);
 
       g.vertex_label = new label_t[vertex_labels.size()];
+      //for(int i=0; i<g.nnodes; i++){
+      //    g.vertex_label[i] = (1<<vertex_labels[i]);
+      //}
       memcpy(g.vertex_label, vertex_labels.data(), sizeof(label_t) * vertex_labels.size());
 
       g.rowptr = new graph_edge_t[g.nnodes + 1];
@@ -103,6 +111,48 @@ namespace libra {
       memcpy(g.colidx, colidx.data(), sizeof(graph_node_t) * colidx.size());
 
       std::cout << "Graph read complete. Number of vertex: " << g.nnodes << std::endl;
+  }
+
+  
+  template<typename T>
+  void read_subfile(std::string fname, T *& pointer, size_t elements) {
+    pointer = (T*)malloc(sizeof(T)*elements);
+    assert(pointer);
+    std::ifstream inf(fname.c_str(), std::ios::binary);
+    if(!inf.good()) {
+      std::cerr << "Failed to open file: " << fname << "\n";
+      exit(1);
     }
+    inf.read(reinterpret_cast<char*>(pointer), sizeof(T)*elements);
+    inf.close();
+  }
+  
+  
+  void read_bin_file(std::string& filename) {
+        std::ifstream f_meta((filename + ".meta.txt").c_str());
+        assert(f_meta);
+
+        graph_node_t n_vertices;
+        graph_edge_t n_edges;
+        int vid_size;
+        graph_node_t max_degree;
+        f_meta >> n_vertices >> n_edges >> vid_size >> max_degree;
+        assert(sizeof(graph_node_t) == vid_size);
+        f_meta.close();
+
+        g.nnodes = n_vertices;
+        g.nedges = n_edges;
+        read_subfile(filename + ".vertex.bin", g.rowptr, n_vertices+1);
+        read_subfile(filename + ".edge.bin", g.colidx, n_edges);
+
+        label_t* lb = new label_t[n_vertices];
+        g.vertex_label = new label_t[n_vertices];
+        //read_subfile(prefix + ".label.bin", lb, n_vertices);
+        //for(int i=0; i<n_vertices; i++){
+        //  g.vertex_label[i] = (1<<lb[i]);
+        //}
+        //delete[] lb;
+    }
+    
   };
 }
