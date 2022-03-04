@@ -3,6 +3,16 @@
 
 namespace libra {
 
+
+  inline __device__ graph_node_t path(CallStack* stk, int level) {
+    if (level >= stk->start_level) {
+      return stk->slot_storage[level][0][stk->iter[level]];
+    }
+    else {
+      return stk->slot_storage[0][0][stk->iter[0] + JOB_CHUNK_SIZE * level];
+    }
+  }
+
   template<typename DATA_T, typename SIZE_T>
   __device__
     inline bool lower_bound_exist(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
@@ -210,7 +220,7 @@ namespace libra {
           ub = INT_MAX;
           if (pat->partial[level - 1][i] != 0) {
             for (pattern_node_t k = 0; k <= level - 1; k++) {
-              if ((pat->partial[level - 1][0] & (1 << k)) && (ub > stk->path[k])) ub = stk->path[k];
+              if ((pat->partial[level - 1][0] & (1 << k)) && (ub > path(stk, k))) ub = path(stk, k);
             }
           }
         }
@@ -218,7 +228,7 @@ namespace libra {
           ub = -1;
           if (pat->partial[level - 1][i] != 0) {
             for (pattern_node_t k = 0; k <= level - 1; k++) {
-              if ((pat->partial[level - 1][i] & (1 << k)) && (ub < stk->path[k])) ub = stk->path[k];
+              if ((pat->partial[level - 1][i] & (1 << k)) && (ub < path(stk, k))) ub = path(stk, k);
             }
           }
           if (ub == -1) ub = INT_MAX;
@@ -227,8 +237,8 @@ namespace libra {
         bitarray32 lb = pat->vertex_label[level - 1][i];
         //printf("lb:%d\n", lb);
 
-        graph_node_t* neighbor = &g->colidx[g->rowptr[stk->path[level - 1]]];
-        graph_node_t neighbor_size = (graph_node_t)(g->rowptr[stk->path[level - 1] + 1] - g->rowptr[stk->path[level - 1]]);
+        graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, level - 1)]];
+        graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, level - 1) + 1] - g->rowptr[path(stk, level - 1)]);
 
         if (pat->set_ops[level - 1][i] & 0x10) {
 
@@ -236,8 +246,8 @@ namespace libra {
           graph_node_t nsize = 0;
 
           if (level >= 2) {
-            nb = &g->colidx[g->rowptr[stk->path[level - 2]]];
-            nsize = (graph_node_t)(g->rowptr[stk->path[level - 2] + 1] - g->rowptr[stk->path[level - 2]]);
+            nb = &g->colidx[g->rowptr[path(stk, level - 2)]];
+            nsize = (graph_node_t)(g->rowptr[path(stk, level - 2) + 1] - g->rowptr[path(stk, level - 2)]);
           }
           // when the second set is empty, the difference function simply checks ub and copy first set to res set.
           arg[wid].set1 = neighbor;
@@ -253,8 +263,8 @@ namespace libra {
 
 
           for (pattern_node_t j = level - 3; j >= 0; j--) {
-            nb = &g->colidx[g->rowptr[stk->path[j]]];
-            nsize = (graph_node_t)(g->rowptr[stk->path[j] + 1] - g->rowptr[stk->path[j]]);
+            nb = &g->colidx[g->rowptr[path(stk, j)]];
+            nsize = (graph_node_t)(g->rowptr[path(stk, j) + 1] - g->rowptr[path(stk, j)]);
 
             arg[wid].set1 = &(stk->slot_storage[level][i][0]);
             arg[wid].set2 = nb;
@@ -316,12 +326,7 @@ namespace libra {
         }
 
         if (stk->iter[level] < stk->slot_size[level][0]) {
-          if (level >= stk->start_level) {
-            stk->path[level] = stk->slot_storage[level][0][stk->iter[level]];
-          }
-          else {
-            stk->path[level] = stk->slot_storage[0][0][stk->iter[0] + JOB_CHUNK_SIZE * level];
-          }
+
           level++;
         }
         else {

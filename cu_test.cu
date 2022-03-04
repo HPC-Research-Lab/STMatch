@@ -25,7 +25,6 @@ int main(int argc, char* argv[]) {
 
   for (int i = 0; i < NWARPS_TOTAL; i++) {
     auto& s = stk[i];
-    memset(s.path, 0, sizeof(s.path));
     memset(s.iter, 0, sizeof(s.iter));
     memset(s.slot_size, 0, sizeof(s.slot_size));
     s.slot_storage = (graph_node_t(*)[PAT_SIZE][GRAPH_DEGREE])((char*)slot_storage + i * sizeof(graph_node_t) * PAT_SIZE * PAT_SIZE * GRAPH_DEGREE);

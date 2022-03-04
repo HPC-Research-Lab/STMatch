@@ -9,7 +9,6 @@ namespace libra {
 
   typedef struct {
 
-    graph_node_t path[PAT_SIZE];
     graph_node_t iter[PAT_SIZE];
     graph_node_t slot_size[PAT_SIZE][PAT_SIZE];
     graph_node_t(*slot_storage)[PAT_SIZE][GRAPH_DEGREE];
