@@ -276,7 +276,7 @@ namespace libra {
             if ((pat.set_ops[i + 1][k] & 0xF) == j) {
               // we add the upper bound of that slot to the current slot
               // the upper bound has to be vertex above level i 
-              m |= (pat.partial[i + 1][k] & ((1 << (i + 1) - 1)));
+              m |= (pat.partial[i + 1][k] & (((1 << (i + 1)) - 1)));
             }
           }
           pat.partial[i][j] = m;

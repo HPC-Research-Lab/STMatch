@@ -31,7 +31,7 @@ namespace libra {
     int offset = 1;
     int last_element = _input[WARP_SIZE - 1];
     // build sum in place up the tree
-    for (int d = WARP_SIZE >> 1; d > 0; d >>= 1) {
+    for (int d = (WARP_SIZE >> 1); d > 0; d >>= 1) {
       //__syncthreads();
       if (thid < d) {
         int ai = offset * (2 * thid + 1) - 1;
@@ -190,7 +190,7 @@ namespace libra {
 
         // compute ub based on pattern->partial
         graph_node_t ub = INT_MAX;
-        assert(level >= 1);
+        // assert(level >= 1);
         if (i == 0) {
           ub = INT_MAX;
           if (pat->partial[level - 1][i] != 0) {
