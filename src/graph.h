@@ -16,7 +16,7 @@ namespace libra {
 
     graph_node_t nnodes = 0;
     graph_edge_t nedges = 0;
-    label_t* vertex_label;
+    bitarray32* vertex_label;
     graph_edge_t* rowptr;
     graph_node_t* colidx;
   } Graph;
@@ -32,10 +32,10 @@ namespace libra {
     Graph* to_gpu() {
       Graph gcopy = g;
 
-      cudaMalloc(&gcopy.vertex_label, sizeof(label_t) * g.nnodes);
+      cudaMalloc(&gcopy.vertex_label, sizeof(bitarray32) * g.nnodes);
       cudaMalloc(&gcopy.rowptr, sizeof(graph_edge_t) * (g.nnodes + 1));
       cudaMalloc(&gcopy.colidx, sizeof(graph_node_t) * g.nedges);
-      cudaMemcpy(gcopy.vertex_label, g.vertex_label, sizeof(label_t) * g.nnodes, cudaMemcpyHostToDevice);
+      cudaMemcpy(gcopy.vertex_label, g.vertex_label, sizeof(bitarray32) * g.nnodes, cudaMemcpyHostToDevice);
       cudaMemcpy(gcopy.rowptr, g.rowptr, sizeof(graph_edge_t) * (g.nnodes + 1), cudaMemcpyHostToDevice);
       cudaMemcpy(gcopy.colidx, g.colidx, sizeof(graph_node_t) * g.nedges, cudaMemcpyHostToDevice);
 
@@ -48,8 +48,8 @@ namespace libra {
     // TODO: dryadic graph format 
 
     void readfile(std::string& filename) {
-      //read_lg_file(filename);
-      read_bin_file(filename);
+      read_lg_file(filename);
+      //read_bin_file(filename);
  
     }
 
@@ -81,11 +81,11 @@ namespace libra {
 
       assert(vertex_labels.size() == g.nnodes);
 
-      g.vertex_label = new label_t[vertex_labels.size()];
-      //for(int i=0; i<g.nnodes; i++){
-      //    g.vertex_label[i] = (1<<vertex_labels[i]);
-      //}
-      memcpy(g.vertex_label, vertex_labels.data(), sizeof(label_t) * vertex_labels.size());
+      g.vertex_label = new bitarray32[vertex_labels.size()];
+      for(int i=0; i<g.nnodes; i++){
+          g.vertex_label[i] = (1<<vertex_labels[i]);
+      }
+     // memcpy(g.vertex_label, vertex_labels.data(), sizeof(label_t) * vertex_labels.size());
 
       g.rowptr = new graph_edge_t[g.nnodes + 1];
       g.rowptr[0] = 0;
@@ -145,8 +145,8 @@ namespace libra {
         read_subfile(filename + ".vertex.bin", g.rowptr, n_vertices+1);
         read_subfile(filename + ".edge.bin", g.colidx, n_edges);
 
-        label_t* lb = new label_t[n_vertices];
-        g.vertex_label = new label_t[n_vertices];
+        //label_t* lb = new label_t[n_vertices];
+        //g.vertex_label = new label_t[n_vertices];
         //read_subfile(prefix + ".label.bin", lb, n_vertices);
         //for(int i=0; i<n_vertices; i++){
         //  g.vertex_label[i] = (1<<lb[i]);

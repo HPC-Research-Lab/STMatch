@@ -12,12 +12,23 @@
 #include "config.h"
 
 
+#define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
+#define BYTE_TO_BINARY(byte)  \
+      (byte & 0x80 ? '1' : '0'), \
+      (byte & 0x40 ? '1' : '0'), \
+      (byte & 0x20 ? '1' : '0'), \
+      (byte & 0x10 ? '1' : '0'), \
+      (byte & 0x08 ? '1' : '0'), \
+      (byte & 0x04 ? '1' : '0'), \
+      (byte & 0x02 ? '1' : '0'), \
+      (byte & 0x01 ? '1' : '0') 
+
 namespace libra {
 
   typedef struct {
 
     pattern_node_t nnodes = 0;
-    label_t vertex_label[PAT_SIZE];
+    label_t vertex_label[PAT_SIZE][PAT_SIZE] = {0};
     bitarray32 partial[PAT_SIZE][PAT_SIZE];
     set_op_t set_ops[PAT_SIZE][PAT_SIZE];
   } Pattern;
@@ -33,6 +44,8 @@ namespace libra {
     std::vector<std::vector<int>> L_adj_matrix_;
     std::vector<std::vector<int>> board;
 
+    std::vector<label_t> vertex_labels;
+
     int length[PAT_SIZE];
     int edge[PAT_SIZE][PAT_SIZE];
 
@@ -42,6 +55,7 @@ namespace libra {
       get_partial_order();
       get_set_ops();
       propagate_partial_order();
+      get_labels();
 
       // TODO: analyze pattern and fill in pat
       std::cout << "Pattern read complete. Pattern size: " << (int)pat.nnodes << std::endl;
@@ -61,7 +75,7 @@ namespace libra {
       std::string line;
       while (std::getline(fin, line) && (line[0] == '#'));
       pat.nnodes = 0;
-      std::vector<label_t> vertex_labels;
+      
       do {
         std::istringstream sin(line);
         char tmp;
@@ -280,6 +294,31 @@ namespace libra {
             }
           }
           pat.partial[i][j] = m;
+        }
+      }
+    }
+
+    void get_labels(){
+
+      for(int i=0; i<pat.nnodes; i++){
+        pat.vertex_label[i][0] = (1 << vertex_labels[i+1]);
+      }
+
+      for (int i = pat.nnodes - 3; i >= 0; i--) {
+        for (int j = 1; j < length[i]; j++) {
+          
+          bitarray32 m = 0;
+          //if(j==0) m = pat.partial[i][j];
+          // for all slots in the next level, 
+          for (int k = 0; k < length[i + 1]; k++) {
+            // if the slot depends on the current slot and the operation is intersection
+            if ((pat.set_ops[i + 1][k] & 0xF) == j) {
+              // we add the upper bound of that slot to the current slot
+              // the upper bound has to be vertex above level i 
+              m |= pat.vertex_label[i + 1][k];
+            }
+          }
+          pat.vertex_label[i][j] = m;
         }
       }
     }
