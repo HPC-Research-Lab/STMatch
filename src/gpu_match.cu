@@ -188,10 +188,12 @@ namespace libra {
         get_job(q, cur_job, njobs);
 
         for (size_t i = 0; i < njobs; i++) {
-          stk->slot_storage[0][0][i] = q->n0[cur_job + i];
-          stk->slot_storage[0][0][i + JOB_CHUNK_SIZE] = q->n1[cur_job + i];
+          for (int j = 0; j < q->start_level; j++) {
+            stk->slot_storage[0][0][i + JOB_CHUNK_SIZE * j] = (q->q[cur_job + i].nodes)[j];
+          }
         }
         stk->slot_size[0][0] = njobs;
+        stk->start_level = q->start_level;
       }
       __syncwarp();
     }
@@ -313,29 +315,28 @@ namespace libra {
           if (level == 0 && stk->slot_size[level][0] == 0) break;
         }
 
-        if ((level > 1) && (stk->iter[level] < stk->slot_size[level][0])) {
-          stk->path[level] = stk->slot_storage[level][0][stk->iter[level]];
-          level++;
-        }
-        else if ((level == 1) && (stk->iter[1] < stk->slot_size[1][0]) && (stk->iter[0] < stk->slot_size[0][0])) {
-          stk->path[1] = stk->slot_storage[0][0][stk->iter[0] + JOB_CHUNK_SIZE];
-          level++;
-        }
-        else if ((level == 0) && (stk->iter[0] < stk->slot_size[0][0])) {
-          stk->path[0] = stk->slot_storage[0][0][stk->iter[0]];
+        if (stk->iter[level] < stk->slot_size[level][0]) {
+          if (level >= stk->start_level) {
+            stk->path[level] = stk->slot_storage[level][0][stk->iter[level]];
+          }
+          else {
+            stk->path[level] = stk->slot_storage[0][0][stk->iter[0] + JOB_CHUNK_SIZE * level];
+          }
           level++;
         }
         else {
           stk->slot_size[level][0] = 0;
-          if (level == 2) {
+          if (level == stk->start_level) {
             level--;
             if (threadIdx.x % WARP_SIZE == 0) {
               stk->iter[0]++;
-              stk->iter[1] = stk->slot_size[1][0];
+              for (int j = 1; j < stk->start_level; j++) {
+                stk->iter[j] = stk->slot_size[j][0];
+              }
             }
             __syncwarp();
           }
-          else if (level > 1) {
+          else if (level > stk->start_level) {
             level--;
             if (threadIdx.x % WARP_SIZE == 0) stk->iter[level]++;
             __syncwarp();
