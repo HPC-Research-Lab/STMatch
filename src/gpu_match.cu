@@ -1,6 +1,7 @@
 #include "gpu_match.cuh"
 #include <cuda.h>
 
+// TODO: change this to gpu array so we can use different unroll for diffrent levels
 #define UNROLL_SIZE(l) 1
 
 namespace libra {
@@ -364,6 +365,7 @@ namespace libra {
           if (level == stk->start_level) {
             level--;
             if (threadIdx.x % WARP_SIZE == 0) {
+              // FIXME: fix this for slot size not divisible by UNROLL_SIZE(level)
               stk->iter[0] += UNROLL_SIZE(level);
               for (int j = 1; j < stk->start_level; j++) {
                 stk->iter[j] = stk->slot_size[j][0][stk->uiter[level]];
@@ -373,6 +375,7 @@ namespace libra {
           }
           else if (level > stk->start_level) {
             level--;
+            // FIXME: fix this for slot size not divisible by UNROLL_SIZE(level)
             if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level);
             __syncwarp();
           }
