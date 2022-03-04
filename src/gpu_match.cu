@@ -59,11 +59,16 @@ namespace libra {
       _input[WARP_SIZE] = _input[WARP_SIZE - 1] + last_element;
   }
 
+  typedef struct {
+    graph_node_t* set1, * set2, * res;
+    graph_node_t set1_size, set2_size, * res_size;
+    graph_node_t ub;
+    bitarray32 label;
+    Graph* g;
+  } Arg_t;
 
-  template<typename DATA_T, typename SIZE_T>
-  __device__ void intersection(DATA_T* set1, DATA_T* set2, DATA_T* _res, 
-                              SIZE_T set1_size, SIZE_T set2_size, SIZE_T* res_size, 
-                              DATA_T ub, bitarray32 label, Graph* g) {
+
+  __device__ void intersection(Arg_t* arg) {
 
     __shared__ int pos[NWARPS_PER_BLOCK][33];
     __shared__ bool still_loop[NWARPS_PER_BLOCK];
@@ -73,16 +78,16 @@ namespace libra {
 
     int end_pos = 0;
 
-    if (set1_size > 0) {
+    if (arg->set1_size > 0) {
 
       still_loop[wid] = true;
 
-      for (int idx = tid; (idx < (((set1_size - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
+      for (int idx = tid; (idx < (((arg->set1_size - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
         pos[wid][tid] = 0;
         pos[wid][WARP_SIZE] = 0;
-        if (idx < set1_size && set1[idx] < ub) {
-          bitarray32 lb =  g->vertex_label[set1[idx]];
-          if ((lb && label == lb) &&  lower_bound_exist(set2, set2_size, set1[idx])) {
+        if (idx < arg->set1_size && arg->set1[idx] < arg->ub) {
+          bitarray32 lb = arg->g->vertex_label[arg->set1[idx]];
+          if ((lb && arg->label == lb) && lower_bound_exist(arg->set2, arg->set2_size, arg->set1[idx])) {
             pos[wid][tid] = 1;
           }
         }
@@ -93,24 +98,22 @@ namespace libra {
 
         prefix_sum(&pos[wid][0]);
 
-        DATA_T res_tmp;
+        graph_node_t res_tmp;
         if (pos[wid][tid + 1] > pos[wid][tid]) {
-          res_tmp = set1[idx];
+          res_tmp = arg->set1[idx];
         }
         __syncwarp();
         if (pos[wid][tid + 1] > pos[wid][tid]) {
-          _res[end_pos + pos[wid][tid]] = res_tmp;
+          arg->res[end_pos + pos[wid][tid]] = res_tmp;
         }
         end_pos += pos[wid][WARP_SIZE];
       }
     }
-    *res_size = end_pos;
+    *(arg->res_size) = end_pos;
   }
 
-  template<typename DATA_T, typename SIZE_T>
-  __device__ void difference(DATA_T* set1, DATA_T* set2, DATA_T* _res, 
-                            SIZE_T set1_size, SIZE_T set2_size, SIZE_T* res_size, 
-                            DATA_T ub, bitarray32 label, Graph* g) {
+  __device__ void difference(Arg_t* arg) {
+
     __shared__ int pos[NWARPS_PER_BLOCK][33];
     __shared__ bool still_loop[NWARPS_PER_BLOCK];
 
@@ -120,16 +123,16 @@ namespace libra {
     int end_pos = 0;
 
     still_loop[wid] = true;
-    
-    for (int idx = tid; (idx < (((set1_size - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
+
+    for (int idx = tid; (idx < (((arg->set1_size - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
       pos[wid][tid] = 0;
       pos[wid][WARP_SIZE] = 0;
-      if (idx < set1_size && set1[idx] < ub) {
-        bitarray32 lb =  g->vertex_label[set1[idx]];
-        if (set2 != NULL) {
-            if ((lb && label == lb) && !lower_bound_exist(set2, set2_size, set1[idx])){
-              pos[wid][tid] = 1;
-            }
+      if (idx < arg->set1_size && arg->set1[idx] < arg->ub) {
+        bitarray32 lb = arg->g->vertex_label[arg->set1[idx]];
+        if (arg->set2 != NULL) {
+          if ((lb && arg->label == lb) && !lower_bound_exist(arg->set2, arg->set2_size, arg->set1[idx])) {
+            pos[wid][tid] = 1;
+          }
         }
         else {
           pos[wid][tid] = 1;
@@ -142,17 +145,17 @@ namespace libra {
 
       prefix_sum(&pos[wid][0]);
 
-      DATA_T res_tmp;
+      graph_node_t res_tmp;
       if (pos[wid][tid + 1] > pos[wid][tid]) {
-        res_tmp = set1[idx];
+        res_tmp = arg->set1[idx];
       }
       __syncwarp();
       if (pos[wid][tid + 1] > pos[wid][tid]) {
-        _res[end_pos + pos[wid][tid]] = res_tmp;
+        arg->res[end_pos + pos[wid][tid]] = res_tmp;
       }
       end_pos += pos[wid][WARP_SIZE];
     }
-    *res_size = end_pos;
+    *(arg->res_size) = end_pos;
   }
 
   __device__ void lock(int* mutex) {
@@ -173,6 +176,10 @@ namespace libra {
   }
 
   __device__ void extend(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, pattern_node_t level) {
+
+    __shared__ Arg_t arg[NWARPS_PER_BLOCK];
+    int wid = threadIdx.x / WARP_SIZE;
+
     if (level == 0) {
       graph_node_t cur_job, njobs;
 
@@ -215,7 +222,7 @@ namespace libra {
           if (ub == -1) ub = INT_MAX;
         }
 
-        bitarray32 lb = pat->vertex_label[level-1][i];
+        bitarray32 lb = pat->vertex_label[level - 1][i];
         //printf("lb:%d\n", lb);
 
         graph_node_t* neighbor = &g->colidx[g->rowptr[stk->path[level - 1]]];
@@ -231,13 +238,32 @@ namespace libra {
             nsize = (graph_node_t)(g->rowptr[stk->path[level - 2] + 1] - g->rowptr[stk->path[level - 2]]);
           }
           // when the second set is empty, the difference function simply checks ub and copy first set to res set.
-          difference(neighbor, nb, &(stk->slot_storage[level][i][0]), neighbor_size, nsize, &(stk->slot_size[level][i]), ub, lb, g);
+          arg[wid].set1 = neighbor;
+          arg[wid].set2 = nb;
+          arg[wid].res = &(stk->slot_storage[level][i][0]);
+          arg[wid].set1_size = neighbor_size;
+          arg[wid].set2_size = nsize;
+          arg[wid].res_size = &(stk->slot_size[level][i]);
+          arg[wid].ub = ub;
+          arg[wid].label = lb;
+          arg[wid].g = g;
+          difference(&arg[wid]);
+
 
           for (pattern_node_t j = level - 3; j >= 0; j--) {
             nb = &g->colidx[g->rowptr[stk->path[j]]];
             nsize = (graph_node_t)(g->rowptr[stk->path[j] + 1] - g->rowptr[stk->path[j]]);
 
-            difference(&(stk->slot_storage[level][i][0]), nb, &(stk->slot_storage[level][i][0]), stk->slot_size[level][i], nsize, &(stk->slot_size[level][i]), ub, lb, g);
+            arg[wid].set1 = &(stk->slot_storage[level][i][0]);
+            arg[wid].set2 = nb;
+            arg[wid].res = &(stk->slot_storage[level][i][0]);
+            arg[wid].set1_size = stk->slot_size[level][i];
+            arg[wid].set2_size = nsize;
+            arg[wid].res_size = &(stk->slot_size[level][i]);
+            arg[wid].ub = ub;
+            arg[wid].label = lb;
+            arg[wid].g = g;
+            difference(&arg[wid]);
           }
         }
         else {
@@ -245,10 +271,29 @@ namespace libra {
           pattern_node_t slot_idx = (pat->set_ops[level - 1][i] & 0xF);
 
           if (pat->set_ops[level - 1][i] & 0x20) {
-            intersection(&(stk->slot_storage[level - 1][slot_idx][0]), neighbor, &(stk->slot_storage[level][i][0]), stk->slot_size[level - 1][slot_idx], neighbor_size, &(stk->slot_size[level][i]), ub, lb, g);
+
+            arg[wid].set1 = &(stk->slot_storage[level - 1][slot_idx][0]);
+            arg[wid].set2 = neighbor;
+            arg[wid].res = &(stk->slot_storage[level][i][0]);
+            arg[wid].set1_size = stk->slot_size[level - 1][slot_idx];
+            arg[wid].set2_size = neighbor_size;
+            arg[wid].res_size = &(stk->slot_size[level][i]);
+            arg[wid].ub = ub;
+            arg[wid].label = lb;
+            arg[wid].g = g;
+            intersection(&arg[wid]);
           }
           else {
-            difference(&(stk->slot_storage[level - 1][slot_idx][0]), neighbor, &(stk->slot_storage[level][i][0]), stk->slot_size[level - 1][slot_idx], neighbor_size, &(stk->slot_size[level][i]), ub, lb, g);
+            arg[wid].set1 = &(stk->slot_storage[level - 1][slot_idx][0]);
+            arg[wid].set2 = neighbor;
+            arg[wid].res = &(stk->slot_storage[level][i][0]);
+            arg[wid].set1_size = stk->slot_size[level - 1][slot_idx];
+            arg[wid].set2_size = neighbor_size;
+            arg[wid].res_size = &(stk->slot_size[level][i]);
+            arg[wid].ub = ub;
+            arg[wid].label = lb;
+            arg[wid].g = g;
+            difference(&arg[wid]);
           }
         }
       }
@@ -316,7 +361,7 @@ namespace libra {
 
   __global__ void _parallel_match(Graph* dev_graph, Pattern* dev_pattern, CallStack* dev_callstack, JobQueue* job_queue, size_t* res) {
 
-    for(int i=0;i<dev_graph->nnodes; i++){
+    for (int i = 0;i < dev_graph->nnodes; i++) {
       //printf("%d ", dev_graph->vertex_label[i]);
     }
     __shared__ Graph graph;
