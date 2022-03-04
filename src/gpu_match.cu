@@ -355,11 +355,12 @@ namespace libra {
           }
           else {
             stk->slot_size[level][0][stk->uiter[level]] = 0;
-            stk->uiter[level]++;
             stk->iter[level] = 0;
+            stk->uiter[level]++;
           }
         }
         else {
+          stk->uiter[level] = 0;
           if (level == stk->start_level) {
             level--;
             if (threadIdx.x % WARP_SIZE == 0) {
