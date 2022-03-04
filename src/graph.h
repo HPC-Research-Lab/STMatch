@@ -145,13 +145,14 @@ namespace libra {
         read_subfile(filename + ".vertex.bin", g.rowptr, n_vertices+1);
         read_subfile(filename + ".edge.bin", g.colidx, n_edges);
 
-        //label_t* lb = new label_t[n_vertices];
-        //g.vertex_label = new label_t[n_vertices];
+        label_t* lb = new label_t[n_vertices];
+        memset(lb, 1, n_vertices*sizeof(label_t));
+        g.vertex_label = new bitarray32[n_vertices];
         //read_subfile(prefix + ".label.bin", lb, n_vertices);
-        //for(int i=0; i<n_vertices; i++){
-        //  g.vertex_label[i] = (1<<lb[i]);
-        //}
-        //delete[] lb;
+        for(int i=0; i<n_vertices; i++){
+          g.vertex_label[i] = (1<<lb[i]);
+        }
+        delete[] lb;
     }
     
   };
