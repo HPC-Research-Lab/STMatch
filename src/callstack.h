@@ -7,11 +7,11 @@
 
 namespace libra {
 
-  typedef struct {
-
+   typedef struct {
     graph_node_t iter[PAT_SIZE];
-    graph_node_t slot_size[PAT_SIZE][PAT_SIZE];
-    graph_node_t(*slot_storage)[PAT_SIZE][GRAPH_DEGREE];
+    graph_node_t uiter[PAT_SIZE];
+    graph_node_t slot_size[PAT_SIZE][PAT_SIZE][UNROLL];
+    graph_node_t(*slot_storage)[PAT_SIZE][UNROLL][GRAPH_DEGREE];
     pattern_node_t level;
     int start_level;
   } CallStack;

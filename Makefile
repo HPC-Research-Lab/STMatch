@@ -1,4 +1,4 @@
-DEBUG =
+DEBUG = -G -g
 
 objects = gpu_match.o
 
