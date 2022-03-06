@@ -83,18 +83,17 @@ namespace libra {
   __device__ void intersection(Arg_t* arg) {
 
     __shared__ int pos[NWARPS_PER_BLOCK][33];
-    __shared__ bool still_loop[NWARPS_PER_BLOCK];
 
     int wid = threadIdx.x / WARP_SIZE;
     int tid = threadIdx.x % WARP_SIZE;
+
+    bool still_loop = true;
 
     int end_pos = 0;
 
     if (arg->set1_size > 0) {
 
-      still_loop[wid] = true;
-
-      for (int idx = tid; (idx < (((arg->set1_size[0] - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
+      for (int idx = tid; (idx < (((arg->set1_size[0] - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop); idx += WARP_SIZE) {
         pos[wid][tid] = 0;
         pos[wid][WARP_SIZE] = 0;
         if (idx < arg->set1_size[0] && arg->set1[0][idx] < arg->ub[0]) {
@@ -104,9 +103,9 @@ namespace libra {
           }
         }
         else {
-          still_loop[wid] = false;
+          still_loop = false;
         }
-        __syncwarp();
+        still_loop = __shfl_sync(0xFFFFFFFF, still_loop, 31);
 
         prefix_sum(&pos[wid][0]);
 
@@ -127,16 +126,15 @@ namespace libra {
   __device__ void difference(Arg_t* arg) {
 
     __shared__ int pos[NWARPS_PER_BLOCK][33];
-    __shared__ bool still_loop[NWARPS_PER_BLOCK];
 
     int wid = threadIdx.x / WARP_SIZE;
     int tid = threadIdx.x % WARP_SIZE;
 
     int end_pos = 0;
 
-    still_loop[wid] = true;
+    bool still_loop = true;
 
-    for (int idx = tid; (idx < (((arg->set1_size[0] - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop[wid]); idx += WARP_SIZE) {
+    for (int idx = tid; (idx < (((arg->set1_size[0] - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop); idx += WARP_SIZE) {
       pos[wid][tid] = 0;
       pos[wid][WARP_SIZE] = 0;
       if (idx < arg->set1_size[0] && arg->set1[0][idx] < arg->ub[0]) {
@@ -151,9 +149,9 @@ namespace libra {
         }
       }
       else {
-        still_loop[wid] = false;
+        still_loop = false;
       }
-      __syncwarp();
+      still_loop = __shfl_sync(0xFFFFFFFF, still_loop, 31);
 
       prefix_sum(&pos[wid][0]);
 
