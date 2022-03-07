@@ -2,7 +2,7 @@
 #include <cuda.h>
 
 // TODO: change this to gpu array so we can use different unroll for diffrent levels
-#define UNROLL_SIZE(l) 1
+#define UNROLL_SIZE(l) UNROLL
 
 namespace libra {
 
