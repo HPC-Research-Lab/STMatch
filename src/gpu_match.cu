@@ -37,14 +37,14 @@ namespace libra {
   }
 
 
-  __device__ inline void prefix_sum(int* _input) {
+ inline __device__
+    void prefix_sum(int* _input, int input_size) {
 
     int thid = threadIdx.x % WARP_SIZE;
     int offset = 1;
-    int last_element = _input[WARP_SIZE - 1];
+    int last_element = _input[input_size - 1];
     // build sum in place up the tree
     for (int d = (WARP_SIZE >> 1); d > 0; d >>= 1) {
-      //__syncthreads();
       if (thid < d) {
         int ai = offset * (2 * thid + 1) - 1;
         int bi = offset * (2 * thid + 2) - 1;
@@ -56,7 +56,6 @@ namespace libra {
      // traverse down tree & build scan
     for (int d = 1; d < WARP_SIZE; d <<= 1) {
       offset >>= 1;
-      //__syncthreads();
       if (thid < d) {
         int ai = offset * (2 * thid + 1) - 1;
         int bi = offset * (2 * thid + 2) - 1;
@@ -67,9 +66,10 @@ namespace libra {
     }
     __syncwarp();
 
-    if (thid == WARP_SIZE - 1)
-      _input[WARP_SIZE] = _input[WARP_SIZE - 1] + last_element;
+    if (thid >= input_size - 1)
+      _input[thid + 1] = _input[input_size - 1] + last_element;
   }
+
 
   typedef struct {
     graph_node_t* set1[UNROLL], * set2[UNROLL], * res[UNROLL];
@@ -77,7 +77,92 @@ namespace libra {
     graph_node_t ub[UNROLL];
     bitarray32 label;
     Graph* g;
+    int num_sets;
   } Arg_t;
+
+/*
+  template<bool DIFF>
+  __device__ void compute_set(Arg_t* arg) {
+
+    __shared__ int pos[NWARPS_PER_BLOCK][WARP_SIZE + 1];
+    __shared__ graph_node_t size_psum[NWARPS_PER_BLOCK][WARP_SIZE + 1];
+    __shared__ int end_pos[NWARPS_PER_BLOCK][UNROLL];
+
+    int wid = threadIdx.x / WARP_SIZE;
+    int tid = threadIdx.x % WARP_SIZE;
+
+
+    if (tid < arg->num_sets) {
+      arg->set1_size[tid] = upper_bound(arg->set1[tid], arg->set1_size[tid], arg->ub[tid]);
+      size_psum[wid][tid] = arg->set1_size[tid];
+      end_pos[wid][tid] = 0;
+    }
+    else {
+      size_psum[wid][tid] = 0;
+    }
+    size_psum[wid][WARP_SIZE] = 0;
+
+
+    __syncwarp();
+
+    prefix_sum(&size_psum[wid][0], arg->num_sets);
+    __syncwarp();
+
+
+    bool still_loop = true;
+    int slot_idx = 0;
+    int offset = 0;
+
+    int size1 = (size_psum[wid][WARP_SIZE] > 0) ? (((size_psum[wid][WARP_SIZE] - 1) / WARP_SIZE + 1) * WARP_SIZE) : 0;
+
+    for (int idx = tid; (idx < size1 && still_loop); idx += WARP_SIZE) {
+      pos[wid][tid] = 0;
+      pos[wid][WARP_SIZE] = 0;
+
+      if (idx < size_psum[wid][WARP_SIZE]) {
+
+        while (idx >= size_psum[wid][slot_idx + 1]) {
+          slot_idx++;
+        }
+
+        offset = idx % size_psum[wid][slot_idx + 1];
+        bitarray32 lb = arg->g->vertex_label[arg->set1[slot_idx][offset]];
+        if ((lb && arg->label == lb) && (DIFF ^ bsearch_exist(arg->set2[slot_idx], arg->set2_size[slot_idx], arg->set1[slot_idx][offset]))) {
+          pos[wid][tid] = 1;
+        }
+      }
+      else {
+        slot_idx = UNROLL;
+        still_loop = false;
+      }
+
+      still_loop = __shfl_sync(0xFFFFFFFF, still_loop, 31);
+
+      prefix_sum(&pos[wid][0], WARP_SIZE);
+      __syncwarp();
+
+      graph_node_t res_tmp;
+      if (pos[wid][tid + 1] > pos[wid][tid]) {
+        res_tmp = arg->set1[slot_idx][offset];
+      }
+      __syncwarp();
+      if (pos[wid][tid + 1] > pos[wid][tid]) {
+        arg->res[slot_idx][end_pos[wid][slot_idx] + pos[wid][tid] - pos[wid][size_psum[wid][slot_idx] % WARP_SIZE]] = res_tmp;
+      }
+
+      if (slot_idx < __shfl_down_sync(0xFFFFFFFF, slot_idx, 1)) {
+           end_pos[wid][slot_idx] += pos[wid][size_psum[wid][slot_idx + 1] % WARP_SIZE] - pos[wid][size_psum[wid][slot_idx]];
+      } else if (tid == WARP_SIZE - 1 && slot_idx < arg->num_sets) {
+        end_pos[wid][slot_idx] += pos[wid][WARP_SIZE];
+      }
+    }
+    __syncwarp();
+    if (tid < arg->num_sets) {
+      *(arg->res_size[tid]) = end_pos[wid][tid];
+    }
+    __syncwarp();
+  } */
+
 
   template<bool DIFF>
   __device__ void compute_set(Arg_t* arg) {
@@ -87,7 +172,7 @@ namespace libra {
     int wid = threadIdx.x / WARP_SIZE;
     int tid = threadIdx.x % WARP_SIZE;
 
-    for (int i = 0; i < UNROLL; i++) {
+    for (int i = 0; i < arg->num_sets; i++) {
       bool still_loop = true;
 
       int end_pos = 0;
@@ -108,7 +193,7 @@ namespace libra {
           }
           still_loop = __shfl_sync(0xFFFFFFFF, still_loop, 31);
 
-          prefix_sum(&pos[wid][0]);
+          prefix_sum(&pos[wid][0], WARP_SIZE);
 
           graph_node_t res_tmp;
           if (pos[wid][tid + 1] > pos[wid][tid]) {
@@ -169,6 +254,10 @@ namespace libra {
     else {
 
       arg[wid].g = g;
+      arg[wid].num_sets = UNROLL_SIZE(level - 1);
+      if (UNROLL_SIZE(level - 1) > stk->slot_size[level - 1][0][stk->uiter[level - 1]] - stk->iter[level - 1]) {
+        arg[wid].num_sets = stk->slot_size[level - 1][0][stk->uiter[level - 1]] - stk->iter[level - 1];
+      }
 
       for (pattern_node_t i = 0; i < PAT_SIZE; i++) {
 
@@ -184,13 +273,13 @@ namespace libra {
               if ((pat->partial[level - 1][0] & (1 << k)) && (ub > path(stk, k, stk->uiter[k]))) ub = path(stk, k, stk->uiter[k]);
             }
 
-            for (pattern_node_t k = 0; k < UNROLL_SIZE(level - 1); k++) {
+            for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
               arg[wid].ub[k] = ub;
               if ((pat->partial[level - 1][0] & (1 << (level - 1))) && (arg[wid].ub[k] > path(stk, level - 1, k))) arg[wid].ub[k] = path(stk, level - 1, k);
             }
           }
           else {
-            for (pattern_node_t k = 0; k < UNROLL_SIZE(level - 1); k++) {
+            for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
               arg[wid].ub[k] = INT_MAX;
             }
           }
@@ -201,14 +290,14 @@ namespace libra {
             for (pattern_node_t k = 0; k < level - 1; k++) {
               if ((pat->partial[level - 1][i] & (1 << k)) && (ub < path(stk, k, stk->uiter[k]))) ub = path(stk, k, stk->uiter[k]);
             }
-            for (pattern_node_t k = 0; k < UNROLL_SIZE(level - 1); k++) {
+            for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
               arg[wid].ub[k] = ub;
               if ((pat->partial[level - 1][0] & (1 << (level - 1))) && (arg[wid].ub[k] > path(stk, level - 1, k))) arg[wid].ub[k] = path(stk, level - 1, k);
               if (arg[wid].ub[k] == -1) arg[wid].ub[k] = INT_MAX;
             }
           }
           else {
-            for (pattern_node_t k = 0; k < UNROLL_SIZE(level - 1); k++) {
+            for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
               arg[wid].ub[k] = INT_MAX;
             }
           }
