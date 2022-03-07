@@ -315,7 +315,7 @@ namespace libra {
             nsize = (graph_node_t)(g->rowptr[path(stk, level - 2, stk->uiter[level - 2]) + 1] - g->rowptr[path(stk, level - 2, stk->uiter[level - 2])]);
           }
 
-          for (graph_node_t k = 0; k < UNROLL_SIZE(level - 1); k++) {
+          for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
             graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, level - 1, k)]];
             graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, level - 1, k) + 1] - g->rowptr[path(stk, level - 1, k)]);
             arg[wid].set1[k] = neighbor;
@@ -332,7 +332,7 @@ namespace libra {
             nb = &g->colidx[g->rowptr[path(stk, j, stk->uiter[j])]];
             nsize = (graph_node_t)(g->rowptr[path(stk, j, stk->uiter[j]) + 1] - g->rowptr[path(stk, j, stk->uiter[j])]);
 
-            for (graph_node_t k = 0; k < UNROLL_SIZE(level - 1); k++) {
+            for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
               arg[wid].set1[k] = &(stk->slot_storage[level][i][k][0]);
               arg[wid].set2[k] = nb;
               arg[wid].res[k] = &(stk->slot_storage[level][i][k][0]);
@@ -348,7 +348,7 @@ namespace libra {
           pattern_node_t slot_idx = (pat->set_ops[level - 1][i] & 0xF);
 
           if (pat->set_ops[level - 1][i] & 0x20) {
-            for (graph_node_t k = 0; k < UNROLL_SIZE(level - 1); k++) {
+            for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
               graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, level - 1, k)]];
               graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, level - 1, k) + 1] - g->rowptr[path(stk, level - 1, k)]);
 
@@ -363,7 +363,7 @@ namespace libra {
           }
           else {
 
-            for (graph_node_t k = 0; k < UNROLL_SIZE(level - 1); k++) {
+            for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
               graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, level - 1, k)]];
               graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, level - 1, k) + 1] - g->rowptr[path(stk, level - 1, k)]);
               arg[wid].set1[k] = &(stk->slot_storage[level - 1][slot_idx][k][0]);
