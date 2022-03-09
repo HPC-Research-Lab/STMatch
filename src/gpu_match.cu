@@ -19,185 +19,6 @@ namespace libra {
     int num_sets;
   } Arg_t;
 
-
-  namespace Wei {
-
-    template<typename DType>
-    __device__
-      inline int upper_bound(DType* _input, int _size, DType _target) {
-      int mid;
-      int low = 0;
-      int high = _size;
-      while (low < high) {
-        mid = low + (high - low) / 2;
-        if (_input[mid] <= _target) {
-          low = mid + 1;
-        }
-        else {
-          high = mid;
-        }
-      }
-
-      return low;
-    }
-
-    template<typename DATA_T, typename SIZE_T>
-    __device__
-      inline bool lower_bound_exist(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
-      int mid;
-      int low = 0;
-      int high = set2_size - 1;
-      while (low <= high) {
-        mid = (low + high) / 2;
-        if (target == set2[mid]) {
-          return true;
-        }
-        else if (target > set2[mid]) {
-          low = mid + 1;
-        }
-        else {
-          high = mid - 1;
-        }
-      }
-      return false;
-    }
-
-
-    template<typename DType>
-    __device__ void prefix_sum(DType* _input, int _input_size, bool inclusive = false) {
-
-      int thid = threadIdx.x % WARP_SIZE;
-      int offset = 1;
-      DType last_element = _input[_input_size - 1];
-      // build sum in place up the tree
-      for (int d = (_input_size >> 1); d > 0; d >>= 1) {
-        //__syncthreads();
-        if (thid < d) {
-          int ai = offset * (2 * thid + 1) - 1;
-          int bi = offset * (2 * thid + 2) - 1;
-          _input[bi] += _input[ai];
-        }
-        offset <<= 1;
-      }
-
-      //return;
-      if (thid == 0) { _input[_input_size - 1] = 0; } // clear the last element
-       // traverse down tree & build scan
-      for (int d = 1; d < _input_size; d <<= 1) {
-        offset >>= 1;
-        //__syncthreads();
-        if (thid < d) {
-          int ai = offset * (2 * thid + 1) - 1;
-          int bi = offset * (2 * thid + 2) - 1;
-          DType t = _input[ai];
-          _input[ai] = _input[bi];
-          _input[bi] += t;
-        }
-      }
-
-      __syncwarp();
-      //return;
-      if (inclusive && thid > 0) {
-        DType tmp = _input[thid];
-        _input[thid - 1] = tmp;
-        _input[_input_size - 1] = _input[_input_size - 1] + last_element;
-      }
-
-      if (!inclusive && thid == _input_size - 1)
-        _input[_input_size] = _input[_input_size - 1] + last_element;
-    }
-
-
-    template <bool DIFF>
-    __device__
-      void compute_set(Arg_t* arg) {
-
-      int wid = threadIdx.x / WARP_SIZE;
-      int tid = threadIdx.x % WARP_SIZE;
-
-      __shared__ int pos[NWARPS_PER_BLOCK][WARP_SIZE];
-      __shared__ bool still_loop[NWARPS_PER_BLOCK];
-      __shared__ int end_pos[NWARPS_PER_BLOCK][UNROLL];
-
-      __shared__ graph_node_t set1_size_scan[NWARPS_PER_BLOCK][UNROLL + 1];
-
-      for (int i = tid; i < UNROLL; i += WARP_SIZE) {
-        set1_size_scan[wid][i] = arg->set1_size[i];
-      }
-
-      prefix_sum(&set1_size_scan[wid][0], UNROLL);
-      __syncwarp();
-
-      still_loop[wid] = true;
-
-      int loop_end = set1_size_scan[wid][UNROLL] - set1_size_scan[wid][UNROLL] % WARP_SIZE + WARP_SIZE;
-
-
-      for (int idx = tid; (idx < loop_end && still_loop[wid]); idx += WARP_SIZE) {
-
-        pos[wid][tid] = 0;
-        int slot_idx = -1;
-        int slot_offset = -1;
-
-        if (idx < set1_size_scan[wid][UNROLL] && arg->set1[idx] < arg->ub) {
-          slot_idx = upper_bound(&set1_size_scan[wid][0], UNROLL + 1, (graph_node_t)idx) - 1;
-          slot_offset = idx - set1_size_scan[wid][slot_idx];
-
-          bitarray32 lb = arg->g->vertex_label[arg->set1[slot_idx][slot_offset]];
-          if ((lb && arg->label == lb) && (DIFF ^ lower_bound_exist(arg->set2[slot_idx], arg->set2_size[slot_idx], arg->set1[slot_idx][slot_offset]))) {
-            pos[wid][tid] = 1;
-          }
-        }
-        else {
-          still_loop[wid] = false;
-        }
-        prefix_sum(&pos[wid][0], WARP_SIZE, true);
-        __syncwarp();
-
-        if (slot_idx != -1 && slot_offset != -1) {
-
-          int res_tmp = -1;
-          if (tid == 0 && pos[wid][tid] == 1) {
-            res_tmp = arg->set1[slot_idx][slot_offset];
-          }
-          if (tid > 0 && pos[wid][tid] > pos[wid][tid - 1]) {
-            res_tmp = arg->set1[slot_idx][slot_offset];
-          }
-          int end_idx_this_slot = set1_size_scan[wid][slot_idx + 1] - 1;
-          int end_idx_last_slot = set1_size_scan[wid][slot_idx] - 1;
-
-          int warp_offset = (idx / WARP_SIZE) * WARP_SIZE;
-          end_idx_this_slot -= warp_offset;
-          end_idx_last_slot -= warp_offset;
-          end_idx_this_slot = end_idx_this_slot >= WARP_SIZE ? WARP_SIZE - 1 : end_idx_this_slot;
-          //end_idx_last_slot = end_idx_last_slot<0?0:end_idx_last_slot;
-          int length_this_slot = -1;
-          int offset_this_idx = -1;
-          if (end_idx_last_slot < 0) {
-            length_this_slot = pos[wid][end_idx_this_slot];
-            offset_this_idx = pos[wid][tid];
-          }
-          else {
-            length_this_slot = pos[wid][end_idx_this_slot] - pos[wid][end_idx_last_slot];
-            offset_this_idx = pos[wid][tid] - pos[wid][end_idx_last_slot];
-          }
-          if (res_tmp != -1) {
-            arg->res[slot_idx][end_pos[wid][slot_idx] + offset_this_idx - 1] = res_tmp;
-          }
-          end_pos[wid][slot_idx] += length_this_slot;
-          //if(wid==1) printf("length_this_slot: %d\n", end_pos[wid][slot_idx] );
-          //if(set1_size_scan[wid][slot_idx]==idx)
-        }
-      }
-
-      //if(wid==0){
-      for (int i = tid; i < UNROLL; i += WARP_SIZE) {
-        *(arg->res_size[i]) = end_pos[wid][i];
-      }
-    }
-
-  }
-
   namespace Jiang {
 
     template<typename DATA_T, typename SIZE_T>
@@ -274,11 +95,6 @@ namespace libra {
     }
 
 
-
-
-
-
-
     template<bool DIFF>
     __device__ void compute_set(Arg_t* arg) {
 
@@ -340,15 +156,17 @@ namespace libra {
           res_tmp = arg->set1[slot_idx][offset];
         }
         __syncwarp();
+        int prev_idx = ((idx / WARP_SIZE == size_psum[wid][slot_idx] / WARP_SIZE) ? size_psum[wid][slot_idx] % WARP_SIZE: 0);
+        
         if (pos[wid][tid + 1] > pos[wid][tid]) {
-          arg->res[slot_idx][end_pos[wid][slot_idx] + pos[wid][tid] - pos[wid][size_psum[wid][slot_idx] % WARP_SIZE]] = res_tmp;
+          arg->res[slot_idx][end_pos[wid][slot_idx] + pos[wid][tid] - pos[wid][prev_idx]] = res_tmp;
         }
 
         if (slot_idx < __shfl_down_sync(0xFFFFFFFF, slot_idx, 1)) {
-          end_pos[wid][slot_idx] += pos[wid][tid + 1] - pos[wid][size_psum[wid][slot_idx] % WARP_SIZE];
+          end_pos[wid][slot_idx] += pos[wid][tid + 1] - pos[wid][prev_idx];
         }
         else if (tid == WARP_SIZE - 1 && slot_idx < arg->num_sets) {
-          end_pos[wid][slot_idx] += pos[wid][WARP_SIZE] - pos[wid][size_psum[wid][slot_idx] % WARP_SIZE];
+          end_pos[wid][slot_idx] += pos[wid][WARP_SIZE] - pos[wid][prev_idx];
         }
       }
       __syncwarp();
@@ -434,7 +252,7 @@ namespace libra {
 
   __device__ void extend(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, pattern_node_t level) {
 
-    using namespace Wei;
+    using namespace Jiang;
 
     __shared__ Arg_t arg[NWARPS_PER_BLOCK];
     int wid = threadIdx.x / WARP_SIZE;
