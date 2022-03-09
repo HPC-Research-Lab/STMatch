@@ -9,7 +9,7 @@ namespace libra {
   typedef char set_op_t;
   typedef unsigned int bitarray32;
 
-  inline constexpr size_t PAT_SIZE = 8;
+  inline constexpr size_t PAT_SIZE = 5;
   inline constexpr size_t GRAPH_DEGREE = 4096;
 
   inline constexpr int GRID_DIM = 80;
@@ -19,7 +19,7 @@ namespace libra {
   inline constexpr int NWARPS_TOTAL = ((GRID_DIM * BLOCK_DIM + WARP_SIZE - 1) / WARP_SIZE);
 
   // TODO: determine chunk size based on max_degree and tot number of jobs
-  inline constexpr graph_node_t JOB_CHUNK_SIZE = 16;
+  inline constexpr graph_node_t JOB_CHUNK_SIZE = 8;
   //static_assert(2 * JOB_CHUNK_SIZE <= GRAPH_DEGREE); 
 
   // this is the maximum unroll size
