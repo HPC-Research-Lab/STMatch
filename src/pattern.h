@@ -12,23 +12,12 @@
 #include "config.h"
 
 
-#define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
-#define BYTE_TO_BINARY(byte)  \
-      (byte & 0x80 ? '1' : '0'), \
-      (byte & 0x40 ? '1' : '0'), \
-      (byte & 0x20 ? '1' : '0'), \
-      (byte & 0x10 ? '1' : '0'), \
-      (byte & 0x08 ? '1' : '0'), \
-      (byte & 0x04 ? '1' : '0'), \
-      (byte & 0x02 ? '1' : '0'), \
-      (byte & 0x01 ? '1' : '0') 
-
 namespace libra {
 
   typedef struct {
 
     pattern_node_t nnodes = 0;
-    label_t vertex_label[PAT_SIZE][PAT_SIZE] = {0};
+    label_t vertex_label[PAT_SIZE][PAT_SIZE] = { 0 };
     bitarray32 partial[PAT_SIZE][PAT_SIZE];
     set_op_t set_ops[PAT_SIZE][PAT_SIZE];
   } Pattern;
@@ -75,7 +64,7 @@ namespace libra {
       std::string line;
       while (std::getline(fin, line) && (line[0] == '#'));
       pat.nnodes = 0;
-      
+
       do {
         std::istringstream sin(line);
         char tmp;
@@ -99,9 +88,9 @@ namespace libra {
     }
 
 
-    // TODO: change this to dryadic/cuTS
+    // input from dryadic is alreay reordered 
     void get_matching_order() {
-      int root = 0;
+      /* int root = 0;
       int max_degree = 0;
       for (int i = 0; i < pat.nnodes; i++) {
         int d = 0;
@@ -132,7 +121,12 @@ namespace libra {
       }
 
       for (int i = 0; i < pat.nnodes; i++)
+        order_map_[vertex_order_[i]] = i;*/
+
+      for (int i = 0; i < pat.nnodes; i++) {
+        vertex_order_[i] = i;
         order_map_[vertex_order_[i]] = i;
+      }
     }
 
     void _permutation(
@@ -231,7 +225,7 @@ namespace libra {
         for (int i = 0; i < pat.nnodes; i++) {
           bool equal = true;
           int c = 0;
-          for (int j=0; j<pat.nnodes; j++) {
+          for (int j = 0; j < pat.nnodes; j++) {
             if (adj_matrix_[i][j] == 1) {
               c++;
               if (adj_tmp[i].find(j) == adj_tmp[i].end()) equal = false;
@@ -298,15 +292,15 @@ namespace libra {
       }
     }
 
-    void get_labels(){
+    void get_labels() {
 
-      for(int i=0; i<pat.nnodes; i++){
-        pat.vertex_label[i][0] = (1 << vertex_labels[i+1]);
+      for (int i = 0; i < pat.nnodes; i++) {
+        pat.vertex_label[i][0] = (1 << vertex_labels[i + 1]);
       }
 
       for (int i = pat.nnodes - 3; i >= 0; i--) {
         for (int j = 1; j < length[i]; j++) {
-          
+
           bitarray32 m = 0;
           //if(j==0) m = pat.partial[i][j];
           // for all slots in the next level, 

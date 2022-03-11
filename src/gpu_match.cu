@@ -451,8 +451,7 @@ namespace libra {
           stk->uiter[level] = 0;
           if (level > 0) {
             level--;
-            // FIXME: fix this for slot size not divisible by UNROLL_SIZE(level)
-            if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level);
+            if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level+1);
             __syncwarp();
           }
         }
@@ -469,7 +468,7 @@ namespace libra {
           stk->slot_size[level][0][j] = 0;
         }
         level--;
-        if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level);
+        if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level+1);
         __syncwarp();
       }
     }
@@ -477,9 +476,6 @@ namespace libra {
 
   __global__ void _parallel_match(Graph* dev_graph, Pattern* dev_pattern, CallStack* dev_callstack, JobQueue* job_queue, size_t* res) {
 
-    for (int i = 0;i < dev_graph->nnodes; i++) {
-      //printf("%d ", dev_graph->vertex_label[i]);
-    }
     __shared__ Graph graph;
     __shared__ Pattern pat;
     __shared__ CallStack stk[NWARPS_PER_BLOCK];
