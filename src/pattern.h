@@ -285,11 +285,23 @@ namespace libra {
           int m = 0;
           // for all slots in the next level, 
           for (int k = 0; k < length[i + 1]; k++) {
-            // if the slot depends on the current slot and the operation is intersection
-            if ((set_ops[i + 1][k] & 0xF) == j) {
-              // we add the upper bound of that slot to the current slot
-              // the upper bound has to be vertex above level i 
-              m |= (partial[i + 1][k] & (((1 << (i + 1)) - 1)));
+            if (set_ops[i + 1][k] & 0x20) {
+              // if the slot depends on the current slot and the operation is intersection
+              if ((set_ops[i + 1][k] & 0xF) == j) {
+                if (partial[i + 1][k] != 0) {
+                  // we add the upper bound of that slot to the current slot
+                  // the upper bound has to be vertex above level i 
+                  m |= (partial[i + 1][k] & (((1 << (i + 1)) - 1)));
+                }
+                else {
+                  m = 0;
+                  break;
+                }
+              }
+            }
+            else {
+              m = 0;
+              break;
             }
           }
           partial[i][j] = m;
@@ -333,17 +345,17 @@ namespace libra {
       pat.rowptr[0] = 0;
       pat.rowptr[1] = 1;
       for (int i = 1; i < pat.nnodes; i++) {
-        for (int j=0; j<PAT_SIZE; j++) {
-          if (set_ops[i-1][j] < 0) break;
+        for (int j = 0; j < PAT_SIZE; j++) {
+          if (set_ops[i - 1][j] < 0) break;
           onedidx[i][j] = count;
-          pat.slot_labels[count] = slot_labels[i-1][j];
-          pat.partial[count] = partial[i-1][j];
-          int idx = onedidx[i-1][(set_ops[i-1][j] & 0x0F)];
+          pat.slot_labels[count] = slot_labels[i - 1][j];
+          pat.partial[count] = partial[i - 1][j];
+          int idx = onedidx[i - 1][(set_ops[i - 1][j] & 0x0F)];
           assert(idx < 31);
-          pat.set_ops[count] = ((set_ops[i-1][j] & 0x30) << 1) + idx;
+          pat.set_ops[count] = ((set_ops[i - 1][j] & 0x30) << 1) + idx;
           count++;
         }
-        pat.rowptr[i+1] = count;
+        pat.rowptr[i + 1] = count;
       }
       std::cout << "total number of slots: " << count << std::endl;
       assert(count <= MAX_SLOT_NUM);
