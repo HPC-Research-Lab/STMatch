@@ -18,8 +18,8 @@ int main(int argc, char* argv[]) {
 
   // allocate the callstack for all warps in global memory
   graph_node_t* slot_storage;
-  cudaMalloc(&slot_storage, sizeof(graph_node_t) * NWARPS_TOTAL * PAT_SIZE * PAT_SIZE * UNROLL * GRAPH_DEGREE);
-  cout << "global memory usage: " << sizeof(graph_node_t) * NWARPS_TOTAL * PAT_SIZE * PAT_SIZE * UNROLL * GRAPH_DEGREE / 1024.0 / 1024 / 1024 << " GB" << endl;
+  cudaMalloc(&slot_storage, sizeof(graph_node_t) * NWARPS_TOTAL * MAX_SLOT_NUM * UNROLL * GRAPH_DEGREE);
+  cout << "global memory usage: " << sizeof(graph_node_t) * NWARPS_TOTAL * MAX_SLOT_NUM * UNROLL * GRAPH_DEGREE / 1024.0 / 1024 / 1024 << " GB" << endl;
 
   std::vector<CallStack> stk(NWARPS_TOTAL);
 
@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
     auto& s = stk[i];
     memset(s.iter, 0, sizeof(s.iter));
     memset(s.slot_size, 0, sizeof(s.slot_size));
-    s.slot_storage = (graph_node_t(*)[PAT_SIZE][UNROLL][GRAPH_DEGREE])((char*)slot_storage + i * sizeof(graph_node_t) * PAT_SIZE * PAT_SIZE * UNROLL * GRAPH_DEGREE);
+    s.slot_storage = (graph_node_t(*)[UNROLL][GRAPH_DEGREE])((char*)slot_storage + i * sizeof(graph_node_t) * MAX_SLOT_NUM * UNROLL * GRAPH_DEGREE);
   }
   cudaMalloc(&gpu_callstack, NWARPS_TOTAL * sizeof(CallStack));
   cudaMemcpy(gpu_callstack, stk.data(), sizeof(CallStack) * NWARPS_TOTAL, cudaMemcpyHostToDevice);

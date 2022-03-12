@@ -58,7 +58,7 @@ namespace libra {
       std::string line;
       while (std::getline(fin, line) && (line[0] == '#'));
       g.nnodes = 0;
-      std::vector<label_t> vertex_labels;
+      std::vector<int> vertex_labels;
       do {
         std::istringstream sin(line);
         char tmp;
@@ -85,7 +85,7 @@ namespace libra {
       for(int i=0; i<g.nnodes; i++){
           g.vertex_label[i] = (1<<vertex_labels[i]);
       }
-     // memcpy(g.vertex_label, vertex_labels.data(), sizeof(label_t) * vertex_labels.size());
+     // memcpy(g.vertex_label, vertex_labels.data(), sizeof(int) * vertex_labels.size());
 
       g.rowptr = new graph_edge_t[g.nnodes + 1];
       g.rowptr[0] = 0;
@@ -145,8 +145,8 @@ namespace libra {
         read_subfile(filename + ".vertex.bin", g.rowptr, n_vertices+1);
         read_subfile(filename + ".edge.bin", g.colidx, n_edges);
 
-        label_t* lb = new label_t[n_vertices];
-        memset(lb, 1, n_vertices*sizeof(label_t));
+        int* lb = new int[n_vertices];
+        memset(lb, 1, n_vertices*sizeof(int));
         g.vertex_label = new bitarray32[n_vertices];
         //read_subfile(prefix + ".label.bin", lb, n_vertices);
         for(int i=0; i<n_vertices; i++){

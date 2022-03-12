@@ -6,8 +6,8 @@
 
 namespace libra {
 
-  inline __device__ graph_node_t path(CallStack* stk, int level, int k) {
-    return stk->slot_storage[level][0][stk->uiter[level]][stk->iter[level] + k];
+  inline __device__ graph_node_t path(CallStack* stk, Pattern* pat, int level, int k) {
+    return stk->slot_storage[pat->rowptr[level]][stk->uiter[level]][stk->iter[level] + k];
   }
 
   typedef struct {
@@ -206,10 +206,10 @@ namespace libra {
 
           for (size_t i = 0; i < njobs; i++) {
             for (int j = 0; j < q->start_level; j++) {
-              stk->slot_storage[0][0][k][i + JOB_CHUNK_SIZE * j] = (q->q[cur_job + i].nodes)[j];
+              stk->slot_storage[0][k][i + JOB_CHUNK_SIZE * j] = (q->q[cur_job + i].nodes)[j];
             }
           }
-          stk->slot_size[0][0][k] = njobs;
+          stk->slot_size[0][k] = njobs;
           stk->start_level = q->start_level;
         }
         __syncwarp();
@@ -219,27 +219,27 @@ namespace libra {
 
       arg[wid].g = g;
       arg[wid].num_sets = UNROLL_SIZE(level);
-      if (stk->slot_size[level - 1][0][stk->uiter[level - 1]] - stk->iter[level - 1] >= 0 && UNROLL_SIZE(level) > stk->slot_size[level - 1][0][stk->uiter[level - 1]] - stk->iter[level - 1]) {
-        arg[wid].num_sets = stk->slot_size[level - 1][0][stk->uiter[level - 1]] - stk->iter[level - 1];
+
+      int remaining = stk->slot_size[pat->rowptr[level-1]][stk->uiter[level - 1]] - stk->iter[level - 1];
+      if (remaining >= 0 && UNROLL_SIZE(level) > remaining) {
+        arg[wid].num_sets = remaining;
       }
 
-      for (pattern_node_t i = 0; i < PAT_SIZE; i++) {
-
-        if (pat->set_ops[level - 1][i] < 0) break;
+      for (int i = pat->rowptr[level] ; i < pat->rowptr[level+1]; i++) {
 
         // compute ub based on pattern->partial
         graph_node_t ub = INT_MAX;
         // assert(level >= 1);
-        if (i == 0) {
+        if (i == pat->rowptr[level]) {
           ub = INT_MAX;
-          if (pat->partial[level - 1][i] != 0) {
+          if (pat->partial[i] != 0) {
             for (pattern_node_t k = 0; k < level - 1; k++) {
-              if ((pat->partial[level - 1][0] & (1 << k)) && (ub > path(stk, k, stk->uiter[k + 1]))) ub = path(stk, k, stk->uiter[k + 1]);
+              if ((pat->partial[i] & (1 << k)) && (ub > path(stk, pat, k, stk->uiter[k + 1]))) ub = path(stk, pat, k, stk->uiter[k + 1]);
             }
 
             for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
               arg[wid].ub[k] = ub;
-              if ((pat->partial[level - 1][0] & (1 << (level - 1))) && (arg[wid].ub[k] > path(stk, level - 1, k))) arg[wid].ub[k] = path(stk, level - 1, k);
+              if ((pat->partial[i] & (1 << (level - 1))) && (arg[wid].ub[k] > path(stk, pat, level - 1, k))) arg[wid].ub[k] = path(stk, pat, level - 1, k);
             }
           }
           else {
@@ -250,13 +250,13 @@ namespace libra {
         }
         else {
           ub = -1;
-          if (pat->partial[level - 1][i] != 0) {
+          if (pat->partial[i] != 0) {
             for (pattern_node_t k = 0; k < level - 1; k++) {
-              if ((pat->partial[level - 1][i] & (1 << k)) && (ub < path(stk, k, stk->uiter[k + 1]))) ub = path(stk, k, stk->uiter[k + 1]);
+              if ((pat->partial[i] & (1 << k)) && (ub < path(stk, pat, k, stk->uiter[k + 1]))) ub = path(stk, pat, k, stk->uiter[k + 1]);
             }
             for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
               arg[wid].ub[k] = ub;
-              if ((pat->partial[level - 1][0] & (1 << (level - 1))) && (arg[wid].ub[k] < path(stk, level - 1, k))) arg[wid].ub[k] = path(stk, level - 1, k);
+              if ((pat->partial[i] & (1 << (level - 1))) && (arg[wid].ub[k] < path(stk, pat, level - 1, k))) arg[wid].ub[k] = path(stk, pat, level - 1, k);
               if (arg[wid].ub[k] == -1) arg[wid].ub[k] = INT_MAX;
             }
           }
@@ -267,72 +267,72 @@ namespace libra {
           }
         }
 
-        arg[wid].label = pat->vertex_label[level - 1][i];
+        arg[wid].label = pat->slot_labels[i];
 
-        if (pat->set_ops[level - 1][i] & 0x10) {
+        if (pat->set_ops[i] & 0x20) {
 
           graph_node_t* nb = NULL;
           graph_node_t nsize = 0;
 
           if (!EDGE_INDUCED) {
             if (level >= 2) {
-              nb = &g->colidx[g->rowptr[path(stk, level - 2, stk->uiter[level - 1])]];
-              nsize = (graph_node_t)(g->rowptr[path(stk, level - 2, stk->uiter[level - 1]) + 1] - g->rowptr[path(stk, level - 2, stk->uiter[level - 1])]);
+              nb = &g->colidx[g->rowptr[path(stk, pat, level - 2, stk->uiter[level - 1])]];
+              nsize = (graph_node_t)(g->rowptr[path(stk, pat, level - 2, stk->uiter[level - 1]) + 1] - g->rowptr[path(stk, pat, level - 2, stk->uiter[level - 1])]);
             }
           }
 
 
           for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
-            graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, level - 1, k)]];
-            graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, level - 1, k) + 1] - g->rowptr[path(stk, level - 1, k)]);
+            graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, pat, level - 1, k)]];
+            graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, pat, level - 1, k) + 1] - g->rowptr[path(stk, pat, level - 1, k)]);
             arg[wid].set1[k] = neighbor;
             arg[wid].set2[k] = nb;
-            arg[wid].res[k] = &(stk->slot_storage[level][i][k][0]);
+            arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
             arg[wid].set1_size[k] = neighbor_size;
             arg[wid].set2_size[k] = nsize;
-            arg[wid].res_size[k] = &(stk->slot_size[level][i][k]);
+            arg[wid].res_size[k] = &(stk->slot_size[i][k]);
           }
           compute_set<true>(&arg[wid]);
-          for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[level][i][k] = 0;
+          for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
 
 
           if (!EDGE_INDUCED) {
             for (pattern_node_t j = level - 3; j >= 0; j--) {
 
-              nb = &g->colidx[g->rowptr[path(stk, j, stk->uiter[j + 1])]];
-              nsize = (graph_node_t)(g->rowptr[path(stk, j, stk->uiter[j + 1]) + 1] - g->rowptr[path(stk, j, stk->uiter[j + 1])]);
+              nb = &g->colidx[g->rowptr[path(stk, pat, j, stk->uiter[j + 1])]];
+              nsize = (graph_node_t)(g->rowptr[path(stk, pat, j, stk->uiter[j + 1]) + 1] - g->rowptr[path(stk, pat, j, stk->uiter[j + 1])]);
 
               for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
-                arg[wid].set1[k] = &(stk->slot_storage[level][i][k][0]);
+                arg[wid].set1[k] = &(stk->slot_storage[i][k][0]);
                 arg[wid].set2[k] = nb;
-                arg[wid].res[k] = &(stk->slot_storage[level][i][k][0]);
-                arg[wid].set1_size[k] = stk->slot_size[level][i][k];
+                arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
+                arg[wid].set1_size[k] = stk->slot_size[i][k];
                 arg[wid].set2_size[k] = nsize;
-                arg[wid].res_size[k] = &(stk->slot_size[level][i][k]);
+                arg[wid].res_size[k] = &(stk->slot_size[i][k]);
               }
               compute_set<true>(&arg[wid]);
-              for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[level][i][k] = 0;
+              for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
             }
           }
         }
         else {
 
-          pattern_node_t slot_idx = (pat->set_ops[level - 1][i] & 0xF);
+          pattern_node_t slot_idx = (pat->set_ops[i] & 0x1F);
 
-          if (pat->set_ops[level - 1][i] & 0x20) {
+          if (pat->set_ops[i] & 0x40) {
             for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
-              graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, level - 1, k)]];
-              graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, level - 1, k) + 1] - g->rowptr[path(stk, level - 1, k)]);
+              graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, pat, level - 1, k)]];
+              graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, pat, level - 1, k) + 1] - g->rowptr[path(stk, pat, level - 1, k)]);
 
-              arg[wid].set1[k] = &(stk->slot_storage[level - 1][slot_idx][stk->uiter[level - 1]][0]);
+              arg[wid].set1[k] = &(stk->slot_storage[slot_idx][stk->uiter[level - 1]][0]);
               arg[wid].set2[k] = neighbor;
-              arg[wid].res[k] = &(stk->slot_storage[level][i][k][0]);
-              arg[wid].set1_size[k] = stk->slot_size[level - 1][slot_idx][stk->uiter[level - 1]];
+              arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
+              arg[wid].set1_size[k] = stk->slot_size[slot_idx][stk->uiter[level - 1]];
               arg[wid].set2_size[k] = neighbor_size;
-              arg[wid].res_size[k] = &(stk->slot_size[level][i][k]);
+              arg[wid].res_size[k] = &(stk->slot_size[i][k]);
             }
             compute_set<false>(&arg[wid]);
-            for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[level][i][k] = 0;
+            for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
 
           }
           else {
@@ -341,18 +341,18 @@ namespace libra {
               graph_node_t* neighbor = NULL;
               graph_node_t neighbor_size = 0;
               if (!EDGE_INDUCED) {
-                neighbor = &g->colidx[g->rowptr[path(stk, level - 1, k)]];
-                neighbor_size = (graph_node_t)(g->rowptr[path(stk, level - 1, k) + 1] - g->rowptr[path(stk, level - 1, k)]);
+                neighbor = &g->colidx[g->rowptr[path(stk, pat, level - 1, k)]];
+                neighbor_size = (graph_node_t)(g->rowptr[path(stk, pat, level - 1, k) + 1] - g->rowptr[path(stk, pat, level - 1, k)]);
               }
-              arg[wid].set1[k] = &(stk->slot_storage[level - 1][slot_idx][stk->uiter[level - 1]][0]);
+              arg[wid].set1[k] = &(stk->slot_storage[slot_idx][stk->uiter[level - 1]][0]);
               arg[wid].set2[k] = neighbor;
-              arg[wid].res[k] = &(stk->slot_storage[level][i][k][0]);
-              arg[wid].set1_size[k] = stk->slot_size[level - 1][slot_idx][stk->uiter[level - 1]];
+              arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
+              arg[wid].set1_size[k] = stk->slot_size[slot_idx][stk->uiter[level - 1]];
               arg[wid].set2_size[k] = neighbor_size;
-              arg[wid].res_size[k] = &(stk->slot_size[level][i][k]);
+              arg[wid].res_size[k] = &(stk->slot_size[i][k]);
             }
             compute_set<true>(&arg[wid]);
-            for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[level][i][k] = 0;
+            for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
 
           }
         }
@@ -369,17 +369,17 @@ namespace libra {
 
       if (level < pat->nnodes - 1) {
 
-        if (stk->uiter[level] == 0 && stk->slot_size[level][0][0] == 0) {
+        if (stk->uiter[level] == 0 && stk->slot_size[pat->rowptr[level]][0] == 0) {
           extend(g, pat, stk, q, level);
-          if (level == 0 && stk->slot_size[level][0][0] == 0) break;
+          if (level == 0 && stk->slot_size[0][0] == 0) break;
         }
 
         if (stk->uiter[level] < UNROLL_SIZE(level)) {
-          if (stk->iter[level] < stk->slot_size[level][0][stk->uiter[level]]) {
-            if (level > 0 && level < stk->start_level && path(stk, level, 0) != stk->slot_storage[0][0][stk->uiter[0]][stk->iter[0] + stk->uiter[1] + level * JOB_CHUNK_SIZE]) {
+          if (stk->iter[level] < stk->slot_size[pat->rowptr[level]][stk->uiter[level]]) {
+            if (level > 0 && level < stk->start_level && path(stk, pat, level, 0) != stk->slot_storage[0][stk->uiter[0]][stk->iter[0] + stk->uiter[1] + level * JOB_CHUNK_SIZE]) {
               stk->iter[level]++;
             }
-            else if (level > 1 && level < stk->start_level + 1 && path(stk, level - 1, stk->uiter[level]) != stk->slot_storage[0][0][stk->uiter[0]][stk->iter[0] + stk->uiter[1] + (level - 1) * JOB_CHUNK_SIZE]) {
+            else if (level > 1 && level < stk->start_level + 1 && path(stk, pat, level - 1, stk->uiter[level]) != stk->slot_storage[0][stk->uiter[0]][stk->iter[0] + stk->uiter[1] + (level - 1) * JOB_CHUNK_SIZE]) {
               stk->uiter[level]++;
             }
             else {
@@ -387,7 +387,7 @@ namespace libra {
             }
           }
           else {
-            stk->slot_size[level][0][stk->uiter[level]] = 0;
+            stk->slot_size[pat->rowptr[level]][stk->uiter[level]] = 0;
             stk->iter[level] = 0;
             stk->uiter[level]++;
           }
@@ -407,10 +407,10 @@ namespace libra {
         extend(g, pat, stk, q, level);
         for (int j = 0; j < UNROLL_SIZE(level); j++) {
           if (threadIdx.x % WARP_SIZE == 0) {
-            *count += stk->slot_size[level][0][j];
+            *count += stk->slot_size[pat->rowptr[level]][j];
           }
           __syncwarp();
-          stk->slot_size[level][0][j] = 0;
+          stk->slot_size[pat->rowptr[level]][j] = 0;
         }
         level--;
         if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level + 1);

@@ -17,9 +17,10 @@ namespace libra {
   typedef struct {
 
     pattern_node_t nnodes = 0;
-    label_t vertex_label[PAT_SIZE][PAT_SIZE] = { 0 };
-    bitarray32 partial[PAT_SIZE][PAT_SIZE];
-    set_op_t set_ops[PAT_SIZE][PAT_SIZE];
+    int rowptr[PAT_SIZE];
+    bitarray32 slot_labels[MAX_SLOT_NUM];
+    bitarray32 partial[MAX_SLOT_NUM];
+    set_op_t set_ops[MAX_SLOT_NUM];
   } Pattern;
 
 
@@ -33,7 +34,11 @@ namespace libra {
     std::vector<std::vector<int>> L_adj_matrix_;
     std::vector<std::vector<int>> board;
 
-    std::vector<label_t> vertex_labels;
+    bitarray32 slot_labels[PAT_SIZE][PAT_SIZE];
+    bitarray32 partial[PAT_SIZE][PAT_SIZE];
+    set_op_t set_ops[PAT_SIZE][PAT_SIZE];
+
+    std::vector<int> vertex_labels;
 
     int length[PAT_SIZE];
     int edge[PAT_SIZE][PAT_SIZE];
@@ -45,8 +50,8 @@ namespace libra {
       get_set_ops();
       propagate_partial_order();
       get_labels();
+      convert2oned();
 
-      // TODO: analyze pattern and fill in pat
       std::cout << "Pattern read complete. Pattern size: " << (int)pat.nnodes << std::endl;
     }
 
@@ -164,7 +169,7 @@ namespace libra {
       memset(length, 0, sizeof(length));
       for (int i = 0; i < pat.nnodes; i++) length[i] = 1;
 
-      memset(pat.set_ops, 0, sizeof(pat.set_ops));
+      memset(set_ops, 0, sizeof(set_ops));
       for (int j = 0; j < pat.nnodes - 1; j++) {
         for (int i = pat.nnodes - 2 - j; i >= 0; i--) {
           // 0 means empty slot in board
@@ -176,29 +181,29 @@ namespace libra {
           if (op2 > 0) {
             bool exist = false;
             // k starts from 1 to make sure candidate sets are not used for computing slots 
-            int startk = ((!LABELED && pat.partial[i - 1][0] == 0) ? 0 : 1);
+            int startk = ((!LABELED && partial[i - 1][0] == 0) ? 0 : 1);
             for (int k = startk; k < length[i - 1]; k++) {
               if (op2 == board[i - 1][k]) {
                 exist = true;
-                pat.set_ops[i][j] += k;
-                pat.set_ops[i][j] += (op1 << 5);
+                set_ops[i][j] += k;
+                set_ops[i][j] += (op1 << 5);
                 break;
               }
             }
             if (!exist) {
-              pat.set_ops[i][j] += length[i - 1];
-              pat.set_ops[i][j] += (op1 << 5);
+              set_ops[i][j] += length[i - 1];
+              set_ops[i][j] += (op1 << 5);
               board[i - 1][length[i - 1]++] = op2;
             }
           }
           else {
-            pat.set_ops[i][j] |= 0x10;
+            set_ops[i][j] |= 0x10;
           }
         }
       }
       // mark the end of slot
       for (int i = 0; i < pat.nnodes - 1; i++) {
-        pat.set_ops[i][length[i]] |= 0x80;
+        set_ops[i][length[i]] |= 0x80;
       }
     }
 
@@ -256,11 +261,11 @@ namespace libra {
         valid_permute = stabilized_aut;
       }
 
-      memset(pat.partial, 0, sizeof(pat.partial));
+      memset(partial, 0, sizeof(partial));
       for (int level = 1; level < pat.nnodes; level++) {
         for (int j = level - 1; j >= 0; j--) {
           if (L_adj_matrix_[j][level] == 1) {
-            pat.partial[level - 1][0] |= (1 << j);
+            partial[level - 1][0] |= (1 << j);
           }
         }
       }
@@ -281,21 +286,23 @@ namespace libra {
           // for all slots in the next level, 
           for (int k = 0; k < length[i + 1]; k++) {
             // if the slot depends on the current slot and the operation is intersection
-            if ((pat.set_ops[i + 1][k] & 0xF) == j) {
+            if ((set_ops[i + 1][k] & 0xF) == j) {
               // we add the upper bound of that slot to the current slot
               // the upper bound has to be vertex above level i 
-              m |= (pat.partial[i + 1][k] & (((1 << (i + 1)) - 1)));
+              m |= (partial[i + 1][k] & (((1 << (i + 1)) - 1)));
             }
           }
-          pat.partial[i][j] = m;
+          partial[i][j] = m;
         }
       }
     }
 
     void get_labels() {
 
+      memset(slot_labels, 0, sizeof(slot_labels));
+
       for (int i = 0; i < pat.nnodes; i++) {
-        pat.vertex_label[i][0] = (1 << vertex_labels[i + 1]);
+        slot_labels[i][0] = (1 << vertex_labels[i + 1]);
       }
 
       for (int i = pat.nnodes - 3; i >= 0; i--) {
@@ -306,15 +313,40 @@ namespace libra {
           // for all slots in the next level, 
           for (int k = 0; k < length[i + 1]; k++) {
             // if the slot depends on the current slot and the operation is intersection
-            if ((pat.set_ops[i + 1][k] & 0xF) == j) {
+            if ((set_ops[i + 1][k] & 0xF) == j) {
               // we add the upper bound of that slot to the current slot
               // the upper bound has to be vertex above level i 
-              m |= pat.vertex_label[i + 1][k];
+              m |= slot_labels[i + 1][k];
             }
           }
-          pat.vertex_label[i][j] = m;
+          slot_labels[i][j] = m;
         }
       }
+    }
+
+    void convert2oned() {
+
+      int onedidx[PAT_SIZE][PAT_SIZE];
+      memset(onedidx, 0, sizeof(onedidx));
+
+      int count = 1;
+      pat.rowptr[0] = 0;
+      pat.rowptr[1] = 1;
+      for (int i = 1; i < pat.nnodes; i++) {
+        for (int j=0; j<PAT_SIZE; j++) {
+          if (set_ops[i-1][j] < 0) break;
+          onedidx[i][j] = count;
+          pat.slot_labels[count] = slot_labels[i-1][j];
+          pat.partial[count] = partial[i-1][j];
+          int idx = onedidx[i-1][(set_ops[i-1][j] & 0x0F)];
+          assert(idx < 31);
+          pat.set_ops[count] = ((set_ops[i-1][j] & 0x30) << 1) + idx;
+          count++;
+        }
+        pat.rowptr[i+1] = count;
+      }
+      std::cout << "total number of slots: " << count << std::endl;
+      assert(count <= MAX_SLOT_NUM);
     }
   };
 }
