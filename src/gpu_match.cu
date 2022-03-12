@@ -194,263 +194,264 @@ namespace libra {
   __device__ void extend(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, pattern_node_t level) {
 
     __shared__ Arg_t arg[NWARPS_PER_BLOCK];
-    __shared__ graph_node_t cur_job_njobs[NWARPS_PER_BLOCK][2];
     int wid = threadIdx.x / WARP_SIZE;
 
     if (level == 0) {
+      graph_node_t cur_job, njobs;
 
-      int tid = threadIdx.x % WARP_SIZE;
-
+      // TODO: change to warp
       for (int k = 0; k < UNROLL_SIZE(level); k++) {
         if (threadIdx.x % WARP_SIZE == 0) {
-          get_job(q, cur_job_njobs[wid][0], cur_job_njobs[wid][1]);
+          get_job(q, cur_job, njobs);
+
+          for (size_t i = 0; i < njobs; i++) {
+            for (int j = 0; j < q->start_level; j++) {
+              stk->slot_storage[0][k][i + JOB_CHUNK_SIZE * j] = (q->q[cur_job + i].nodes)[j];
+            }
+          }
+          stk->slot_size[0][k] = njobs;
+          stk->start_level = q->start_level;
         }
         __syncwarp();
-        if (tid < cur_job_njobs[wid][1]) {
-          for (int j = 0; j < q->start_level; j++) {
-            stk->slot_storage[0][k][tid + JOB_CHUNK_SIZE * j] = (q->q[cur_job_njobs[wid][0] + tid].nodes)[j];
-          }
-        }
-        stk->slot_size[0][k] = cur_job_njobs[wid][1];
-        stk->start_level = q->start_level;
       }
-      __syncwarp();
     }
     else {
 
-    arg[wid].g = g;
-    arg[wid].num_sets = UNROLL_SIZE(level);
+      arg[wid].g = g;
+      arg[wid].num_sets = UNROLL_SIZE(level);
 
-    int remaining = stk->slot_size[pat->rowptr[level - 1]][stk->uiter[level - 1]] - stk->iter[level - 1];
-    if (remaining >= 0 && UNROLL_SIZE(level) > remaining) {
-      arg[wid].num_sets = remaining;
-    }
-
-    for (int i = pat->rowptr[level]; i < pat->rowptr[level + 1]; i++) {
-
-      // compute ub based on pattern->partial
-      graph_node_t ub = INT_MAX;
-      // assert(level >= 1);
-      if (i == pat->rowptr[level]) {
-        ub = INT_MAX;
-        if (pat->partial[i] != 0) {
-          for (pattern_node_t k = 0; k < level - 1; k++) {
-            if ((pat->partial[i] & (1 << k)) && (ub > path(stk, pat, k, stk->uiter[k + 1]))) ub = path(stk, pat, k, stk->uiter[k + 1]);
-          }
-
-          for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
-            arg[wid].ub[k] = ub;
-            if ((pat->partial[i] & (1 << (level - 1))) && (arg[wid].ub[k] > path(stk, pat, level - 1, k))) arg[wid].ub[k] = path(stk, pat, level - 1, k);
-          }
-        }
-        else {
-          for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
-            arg[wid].ub[k] = INT_MAX;
-          }
-        }
-      }
-      else {
-        ub = -1;
-        if (pat->partial[i] != 0) {
-          for (pattern_node_t k = 0; k < level - 1; k++) {
-            if ((pat->partial[i] & (1 << k)) && (ub < path(stk, pat, k, stk->uiter[k + 1]))) ub = path(stk, pat, k, stk->uiter[k + 1]);
-          }
-          for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
-            arg[wid].ub[k] = ub;
-            if ((pat->partial[i] & (1 << (level - 1))) && (arg[wid].ub[k] < path(stk, pat, level - 1, k))) arg[wid].ub[k] = path(stk, pat, level - 1, k);
-            if (arg[wid].ub[k] == -1) arg[wid].ub[k] = INT_MAX;
-          }
-        }
-        else {
-          for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
-            arg[wid].ub[k] = INT_MAX;
-          }
-        }
+      int remaining = stk->slot_size[pat->rowptr[level - 1]][stk->uiter[level - 1]] - stk->iter[level - 1];
+      if (remaining >= 0 && UNROLL_SIZE(level) > remaining) {
+        arg[wid].num_sets = remaining;
       }
 
-      arg[wid].label = pat->slot_labels[i];
+      for (int i = pat->rowptr[level]; i < pat->rowptr[level + 1]; i++) {
 
-      if (pat->set_ops[i] & 0x20) {
-
-        graph_node_t* nb = NULL;
-        graph_node_t nsize = 0;
-
-        if (!EDGE_INDUCED) {
-          if (level >= 2) {
-            nb = &g->colidx[g->rowptr[path(stk, pat, level - 2, stk->uiter[level - 1])]];
-            nsize = (graph_node_t)(g->rowptr[path(stk, pat, level - 2, stk->uiter[level - 1]) + 1] - g->rowptr[path(stk, pat, level - 2, stk->uiter[level - 1])]);
-          }
-        }
-        for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
-          graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, pat, level - 1, k)]];
-          graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, pat, level - 1, k) + 1] - g->rowptr[path(stk, pat, level - 1, k)]);
-          arg[wid].set1[k] = neighbor;
-          arg[wid].set2[k] = nb;
-          arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
-          arg[wid].set1_size[k] = neighbor_size;
-          arg[wid].set2_size[k] = nsize;
-          arg[wid].res_size[k] = &(stk->slot_size[i][k]);
-        }
-        compute_set<true>(&arg[wid]);
-        for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
-
-
-        if (!EDGE_INDUCED) {
-          for (pattern_node_t j = level - 3; j >= 0; j--) {
-
-            nb = &g->colidx[g->rowptr[path(stk, pat, j, stk->uiter[j + 1])]];
-            nsize = (graph_node_t)(g->rowptr[path(stk, pat, j, stk->uiter[j + 1]) + 1] - g->rowptr[path(stk, pat, j, stk->uiter[j + 1])]);
-
-            for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
-              arg[wid].set1[k] = &(stk->slot_storage[i][k][0]);
-              arg[wid].set2[k] = nb;
-              arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
-              arg[wid].set1_size[k] = stk->slot_size[i][k];
-              arg[wid].set2_size[k] = nsize;
-              arg[wid].res_size[k] = &(stk->slot_size[i][k]);
+        // compute ub based on pattern->partial
+        graph_node_t ub = INT_MAX;
+        // assert(level >= 1);
+        if (i == pat->rowptr[level]) {
+          ub = INT_MAX;
+          if (pat->partial[i] != 0) {
+            for (pattern_node_t k = 0; k < level - 1; k++) {
+              if ((pat->partial[i] & (1 << k)) && (ub > path(stk, pat, k, stk->uiter[k + 1]))) ub = path(stk, pat, k, stk->uiter[k + 1]);
             }
-            compute_set<true>(&arg[wid]);
-            for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
+
+            for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
+              arg[wid].ub[k] = ub;
+              if ((pat->partial[i] & (1 << (level - 1))) && (arg[wid].ub[k] > path(stk, pat, level - 1, k))) arg[wid].ub[k] = path(stk, pat, level - 1, k);
+            }
+          }
+          else {
+            for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
+              arg[wid].ub[k] = INT_MAX;
+            }
           }
         }
-      }
-      else {
+        else {
+          ub = -1;
+          if (pat->partial[i] != 0) {
+            for (pattern_node_t k = 0; k < level - 1; k++) {
+              if ((pat->partial[i] & (1 << k)) && (ub < path(stk, pat, k, stk->uiter[k + 1]))) ub = path(stk, pat, k, stk->uiter[k + 1]);
+            }
+            for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
+              arg[wid].ub[k] = ub;
+              if ((pat->partial[i] & (1 << (level - 1))) && (arg[wid].ub[k] < path(stk, pat, level - 1, k))) arg[wid].ub[k] = path(stk, pat, level - 1, k);
+              if (arg[wid].ub[k] == -1) arg[wid].ub[k] = INT_MAX;
+            }
+          }
+          else {
+            for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
+              arg[wid].ub[k] = INT_MAX;
+            }
+          }
+        }
 
-        pattern_node_t slot_idx = (pat->set_ops[i] & 0x1F);
+        arg[wid].label = pat->slot_labels[i];
 
-        if (pat->set_ops[i] & 0x40) {
+        if (pat->set_ops[i] & 0x20) {
+
+          graph_node_t* nb = NULL;
+          graph_node_t nsize = 0;
+
+          if (!EDGE_INDUCED) {
+            if (level >= 2) {
+              nb = &g->colidx[g->rowptr[path(stk, pat, level - 2, stk->uiter[level - 1])]];
+              nsize = (graph_node_t)(g->rowptr[path(stk, pat, level - 2, stk->uiter[level - 1]) + 1] - g->rowptr[path(stk, pat, level - 2, stk->uiter[level - 1])]);
+            }
+          }
+
+
           for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
             graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, pat, level - 1, k)]];
             graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, pat, level - 1, k) + 1] - g->rowptr[path(stk, pat, level - 1, k)]);
-
-            arg[wid].set1[k] = &(stk->slot_storage[slot_idx][stk->uiter[level - 1]][0]);
-            arg[wid].set2[k] = neighbor;
+            arg[wid].set1[k] = neighbor;
+            arg[wid].set2[k] = nb;
             arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
-            arg[wid].set1_size[k] = stk->slot_size[slot_idx][stk->uiter[level - 1]];
-            arg[wid].set2_size[k] = neighbor_size;
-            arg[wid].res_size[k] = &(stk->slot_size[i][k]);
-          }
-          compute_set<false>(&arg[wid]);
-          for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
-
-        }
-        else {
-
-          for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
-            graph_node_t* neighbor = NULL;
-            graph_node_t neighbor_size = 0;
-            if (!EDGE_INDUCED) {
-              neighbor = &g->colidx[g->rowptr[path(stk, pat, level - 1, k)]];
-              neighbor_size = (graph_node_t)(g->rowptr[path(stk, pat, level - 1, k) + 1] - g->rowptr[path(stk, pat, level - 1, k)]);
-            }
-            arg[wid].set1[k] = &(stk->slot_storage[slot_idx][stk->uiter[level - 1]][0]);
-            arg[wid].set2[k] = neighbor;
-            arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
-            arg[wid].set1_size[k] = stk->slot_size[slot_idx][stk->uiter[level - 1]];
-            arg[wid].set2_size[k] = neighbor_size;
+            arg[wid].set1_size[k] = neighbor_size;
+            arg[wid].set2_size[k] = nsize;
             arg[wid].res_size[k] = &(stk->slot_size[i][k]);
           }
           compute_set<true>(&arg[wid]);
           for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
 
-        }
-      }
-    }
-    }
-    stk->iter[level] = 0;
-    stk->uiter[level] = 0;
-}
 
-__device__ void match(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, size_t* count) {
-  pattern_node_t level = 0;
+          if (!EDGE_INDUCED) {
+            for (pattern_node_t j = level - 3; j >= 0; j--) {
 
-  while (true) {
+              nb = &g->colidx[g->rowptr[path(stk, pat, j, stk->uiter[j + 1])]];
+              nsize = (graph_node_t)(g->rowptr[path(stk, pat, j, stk->uiter[j + 1]) + 1] - g->rowptr[path(stk, pat, j, stk->uiter[j + 1])]);
 
-    if (level < pat->nnodes - 1) {
-
-      if (stk->uiter[level] == 0 && stk->slot_size[pat->rowptr[level]][0] == 0) {
-        extend(g, pat, stk, q, level);
-        if (level == 0 && stk->slot_size[0][0] == 0) break;
-      }
-
-      if (stk->uiter[level] < UNROLL_SIZE(level)) {
-        if (stk->iter[level] < stk->slot_size[pat->rowptr[level]][stk->uiter[level]]) {
-          if (level > 0 && level < stk->start_level && path(stk, pat, level, 0) != stk->slot_storage[0][stk->uiter[0]][stk->iter[0] + stk->uiter[1] + level * JOB_CHUNK_SIZE]) {
-            stk->iter[level]++;
-          }
-          else if (level > 1 && level < stk->start_level + 1 && path(stk, pat, level - 1, stk->uiter[level]) != stk->slot_storage[0][stk->uiter[0]][stk->iter[0] + stk->uiter[1] + (level - 1) * JOB_CHUNK_SIZE]) {
-            stk->uiter[level]++;
-          }
-          else {
-            level++;
+              for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
+                arg[wid].set1[k] = &(stk->slot_storage[i][k][0]);
+                arg[wid].set2[k] = nb;
+                arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
+                arg[wid].set1_size[k] = stk->slot_size[i][k];
+                arg[wid].set2_size[k] = nsize;
+                arg[wid].res_size[k] = &(stk->slot_size[i][k]);
+              }
+              compute_set<true>(&arg[wid]);
+              for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
+            }
           }
         }
         else {
-          stk->slot_size[pat->rowptr[level]][stk->uiter[level]] = 0;
-          stk->iter[level] = 0;
-          stk->uiter[level]++;
+
+          pattern_node_t slot_idx = (pat->set_ops[i] & 0x1F);
+
+          if (pat->set_ops[i] & 0x40) {
+            for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
+              graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, pat, level - 1, k)]];
+              graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, pat, level - 1, k) + 1] - g->rowptr[path(stk, pat, level - 1, k)]);
+
+              arg[wid].set1[k] = &(stk->slot_storage[slot_idx][stk->uiter[level - 1]][0]);
+              arg[wid].set2[k] = neighbor;
+              arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
+              arg[wid].set1_size[k] = stk->slot_size[slot_idx][stk->uiter[level - 1]];
+              arg[wid].set2_size[k] = neighbor_size;
+              arg[wid].res_size[k] = &(stk->slot_size[i][k]);
+            }
+            compute_set<false>(&arg[wid]);
+            for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
+
+          }
+          else {
+
+            for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
+              graph_node_t* neighbor = NULL;
+              graph_node_t neighbor_size = 0;
+              if (!EDGE_INDUCED) {
+                neighbor = &g->colidx[g->rowptr[path(stk, pat, level - 1, k)]];
+                neighbor_size = (graph_node_t)(g->rowptr[path(stk, pat, level - 1, k) + 1] - g->rowptr[path(stk, pat, level - 1, k)]);
+              }
+              arg[wid].set1[k] = &(stk->slot_storage[slot_idx][stk->uiter[level - 1]][0]);
+              arg[wid].set2[k] = neighbor;
+              arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
+              arg[wid].set1_size[k] = stk->slot_size[slot_idx][stk->uiter[level - 1]];
+              arg[wid].set2_size[k] = neighbor_size;
+              arg[wid].res_size[k] = &(stk->slot_size[i][k]);
+            }
+            compute_set<true>(&arg[wid]);
+            for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
+
+          }
         }
       }
-      else {
-        stk->uiter[level] = 0;
-        if (level > 0) {
-          level--;
-          if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level + 1);
+    }
+    stk->iter[level] = 0;
+    stk->uiter[level] = 0;
+  }
+
+  __device__ void match(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, size_t* count) {
+    pattern_node_t level = 0;
+
+    while (true) {
+
+      if (level < pat->nnodes - 1) {
+
+        if (stk->uiter[level] == 0 && stk->slot_size[pat->rowptr[level]][0] == 0) {
+          extend(g, pat, stk, q, level);
+          if (level == 0 && stk->slot_size[0][0] == 0) break;
+        }
+
+        if (stk->uiter[level] < UNROLL_SIZE(level)) {
+          if (stk->iter[level] < stk->slot_size[pat->rowptr[level]][stk->uiter[level]]) {
+            if (level > 0 && level < stk->start_level && path(stk, pat, level, 0) != stk->slot_storage[0][stk->uiter[0]][stk->iter[0] + stk->uiter[1] + level * JOB_CHUNK_SIZE]) {
+              stk->iter[level]++;
+            }
+            else if (level > 1 && level < stk->start_level + 1 && path(stk, pat, level - 1, stk->uiter[level]) != stk->slot_storage[0][stk->uiter[0]][stk->iter[0] + stk->uiter[1] + (level - 1) * JOB_CHUNK_SIZE]) {
+              stk->uiter[level]++;
+            }
+            else {
+              level++;
+            }
+          }
+          else {
+            stk->slot_size[pat->rowptr[level]][stk->uiter[level]] = 0;
+            stk->iter[level] = 0;
+            stk->uiter[level]++;
+          }
+        }
+        else {
+          stk->uiter[level] = 0;
+          if (level > 0) {
+            level--;
+            if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level + 1);
+            __syncwarp();
+          }
+        }
+      }
+      else if (level == pat->nnodes - 1) {
+
+        // TODO: we can save the storage of sets for the last level
+        extend(g, pat, stk, q, level);
+        for (int j = 0; j < UNROLL_SIZE(level); j++) {
+          if (threadIdx.x % WARP_SIZE == 0) {
+            *count += stk->slot_size[pat->rowptr[level]][j];
+          }
           __syncwarp();
+          stk->slot_size[pat->rowptr[level]][j] = 0;
         }
-      }
-    }
-    else if (level == pat->nnodes - 1) {
-
-      // TODO: we can save the storage of sets for the last level
-      extend(g, pat, stk, q, level);
-      for (int j = 0; j < UNROLL_SIZE(level); j++) {
-        if (threadIdx.x % WARP_SIZE == 0) {
-          *count += stk->slot_size[pat->rowptr[level]][j];
-        }
+        level--;
+        if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level + 1);
         __syncwarp();
-        stk->slot_size[pat->rowptr[level]][j] = 0;
       }
-      level--;
-      if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level + 1);
-      __syncwarp();
     }
   }
-}
 
-__global__ void _parallel_match(Graph* dev_graph, Pattern* dev_pattern, CallStack* dev_callstack, JobQueue* job_queue, size_t* res) {
+  __global__ void _parallel_match(Graph* dev_graph, Pattern* dev_pattern, CallStack* dev_callstack, JobQueue* job_queue, size_t* res) {
 
-  __shared__ Graph graph;
-  __shared__ Pattern pat;
-  __shared__ CallStack stk[NWARPS_PER_BLOCK];
-  __shared__ size_t count[NWARPS_PER_BLOCK];
+    __shared__ Graph graph;
+    __shared__ Pattern pat;
+    __shared__ CallStack stk[NWARPS_PER_BLOCK];
+    __shared__ size_t count[NWARPS_PER_BLOCK];
 
-  int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
-  int global_wid = global_tid / WARP_SIZE;
-  int local_wid = threadIdx.x / WARP_SIZE;
+    int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int global_wid = global_tid / WARP_SIZE;
+    int local_wid = threadIdx.x / WARP_SIZE;
 
-  if (threadIdx.x == 0) {
-    graph = *dev_graph;
-    pat = *dev_pattern;
+    if (threadIdx.x == 0) {
+      graph = *dev_graph;
+      pat = *dev_pattern;
+    }
+    __syncthreads();
+
+    if (threadIdx.x % WARP_SIZE == 0) {
+      stk[local_wid] = dev_callstack[global_wid];
+    }
+    __syncwarp();
+
+    auto start = clock64();
+    while (true) {
+      match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid]);
+      break;
+      // TODO: load balance
+    }
+    auto stop = clock64();
+
+    if (threadIdx.x % WARP_SIZE == 0) {
+      res[global_wid] = count[local_wid];
+      //printf("%ld\n", stop - start);
+    }
   }
-  __syncthreads();
-
-  if (threadIdx.x % WARP_SIZE == 0) {
-    stk[local_wid] = dev_callstack[global_wid];
-  }
-  __syncwarp();
-
-  auto start = clock64();
-  while (true) {
-    match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid]);
-    break;
-    // TODO: load balance
-  }
-  auto stop = clock64();
-
-  if (threadIdx.x % WARP_SIZE == 0) {
-    res[global_wid] = count[local_wid];
-    //printf("%ld\n", stop - start);
-  }
-}
 }
