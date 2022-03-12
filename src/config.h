@@ -22,7 +22,7 @@ namespace libra {
   inline constexpr int NWARPS_TOTAL = ((GRID_DIM * BLOCK_DIM + WARP_SIZE - 1) / WARP_SIZE);
 
   // TODO: determine chunk size based on max_degree and tot number of jobs
-  inline constexpr graph_node_t JOB_CHUNK_SIZE = 8;
+  inline constexpr graph_node_t JOB_CHUNK_SIZE = 4;
   //static_assert(2 * JOB_CHUNK_SIZE <= GRAPH_DEGREE); 
 
   // this is the maximum unroll size
