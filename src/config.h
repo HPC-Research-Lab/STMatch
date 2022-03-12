@@ -10,7 +10,7 @@ namespace libra {
 
   inline constexpr size_t PAT_SIZE = 5;
   inline constexpr size_t GRAPH_DEGREE = 4096;
-  inline constexpr size_t MAX_SLOT_NUM = 16;
+  inline constexpr size_t MAX_SLOT_NUM = 10;
 
   inline constexpr bool LABELED = false;
   inline constexpr bool EDGE_INDUCED = false;
@@ -26,5 +26,5 @@ namespace libra {
   //static_assert(2 * JOB_CHUNK_SIZE <= GRAPH_DEGREE); 
 
   // this is the maximum unroll size
-  inline constexpr int UNROLL = 1;
+  inline constexpr int UNROLL = 4;
 }

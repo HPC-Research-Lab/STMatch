@@ -220,12 +220,12 @@ namespace libra {
       arg[wid].g = g;
       arg[wid].num_sets = UNROLL_SIZE(level);
 
-      int remaining = stk->slot_size[pat->rowptr[level-1]][stk->uiter[level - 1]] - stk->iter[level - 1];
+      int remaining = stk->slot_size[pat->rowptr[level - 1]][stk->uiter[level - 1]] - stk->iter[level - 1];
       if (remaining >= 0 && UNROLL_SIZE(level) > remaining) {
         arg[wid].num_sets = remaining;
       }
 
-      for (int i = pat->rowptr[level] ; i < pat->rowptr[level+1]; i++) {
+      for (int i = pat->rowptr[level]; i < pat->rowptr[level + 1]; i++) {
 
         // compute ub based on pattern->partial
         graph_node_t ub = INT_MAX;
@@ -451,7 +451,7 @@ namespace libra {
 
     if (threadIdx.x % WARP_SIZE == 0) {
       res[global_wid] = count[local_wid];
-      // printf("%ld\n", stop - start);
+      //printf("%ld\n", stop - start);
     }
   }
 }
