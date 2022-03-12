@@ -252,11 +252,13 @@ namespace libra {
           ub = -1;
           if (pat->partial[i] != 0) {
             for (pattern_node_t k = 0; k < level - 1; k++) {
-              if ((pat->partial[i] & (1 << k)) && (ub < path(stk, pat, k, stk->uiter[k + 1]))) ub = path(stk, pat, k, stk->uiter[k + 1]);
+              // TODO: check if 'pat->rowptr[level]' is correct
+              if ((pat->partial[pat->rowptr[level]] & (1 << k)) && (ub < path(stk, pat, k, stk->uiter[k + 1]))) ub = path(stk, pat, k, stk->uiter[k + 1]);
             }
             for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
               arg[wid].ub[k] = ub;
-              if ((pat->partial[i] & (1 << (level - 1))) && (arg[wid].ub[k] < path(stk, pat, level - 1, k))) arg[wid].ub[k] = path(stk, pat, level - 1, k);
+              // TODO: check if 'pat->rowptr[level]' is correct
+              if ((pat->partial[pat->rowptr[level]] & (1 << (level - 1))) && (arg[wid].ub[k] < path(stk, pat, level - 1, k))) arg[wid].ub[k] = path(stk, pat, level - 1, k);
               if (arg[wid].ub[k] == -1) arg[wid].ub[k] = INT_MAX;
             }
           }
