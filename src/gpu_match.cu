@@ -19,218 +19,159 @@ namespace libra {
     int num_sets;
   } Arg_t;
 
-  namespace Jiang {
-
-    template<typename DATA_T, typename SIZE_T>
-    __device__
-      inline bool bsearch_exist(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
-      int mid;
-      int low = 0;
-      int high = set2_size - 1;
-      while (low <= high) {
-        mid = (low + high) / 2;
-        if (target == set2[mid]) {
-          return true;
-        }
-        else if (target > set2[mid]) {
-          low = mid + 1;
-        }
-        else {
-          high = mid - 1;
-        }
+  template<typename DATA_T, typename SIZE_T>
+  __device__
+    inline bool bsearch_exist(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
+    int mid;
+    int low = 0;
+    int high = set2_size - 1;
+    while (low <= high) {
+      mid = (low + high) / 2;
+      if (target == set2[mid]) {
+        return true;
       }
-      return false;
-    }
-
-    template<typename DATA_T, typename SIZE_T>
-    inline __device__
-      SIZE_T upper_bound(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
-      int i, step;
-      int low = 0;
-      while (set2_size > 0) {
-        i = low;
-        step = set2_size / 2;
-        i += step;
-        if (target > set2[i]) {
-          low = ++i; set2_size -= step + 1;
-        }
-        else {
-          set2_size = step;
-        }
-      }
-      return low;
-    }
-
-    inline __device__
-      void prefix_sum(int* _input, int input_size) {
-
-      int thid = threadIdx.x % WARP_SIZE;
-      int offset = 1;
-      int last_element = _input[input_size - 1];
-      // build sum in place up the tree
-      for (int d = (WARP_SIZE >> 1); d > 0; d >>= 1) {
-        if (thid < d) {
-          int ai = offset * (2 * thid + 1) - 1;
-          int bi = offset * (2 * thid + 2) - 1;
-          _input[bi] += _input[ai];
-        }
-        offset <<= 1;
-      }
-      if (thid == 0) { _input[WARP_SIZE - 1] = 0; } // clear the last element
-       // traverse down tree & build scan
-      for (int d = 1; d < WARP_SIZE; d <<= 1) {
-        offset >>= 1;
-        if (thid < d) {
-          int ai = offset * (2 * thid + 1) - 1;
-          int bi = offset * (2 * thid + 2) - 1;
-          int t = _input[ai];
-          _input[ai] = _input[bi];
-          _input[bi] += t;
-        }
-      }
-      __syncwarp();
-
-      if (thid >= input_size - 1)
-        _input[thid + 1] = _input[input_size - 1] + last_element;
-    }
-
-
-    template<bool DIFF>
-    __device__ void compute_set(Arg_t* arg) {
-
-      __shared__ int pos[NWARPS_PER_BLOCK][WARP_SIZE + 1];
-      __shared__ graph_node_t size_psum[NWARPS_PER_BLOCK][WARP_SIZE + 1];
-      __shared__ int end_pos[NWARPS_PER_BLOCK][UNROLL];
-
-      int wid = threadIdx.x / WARP_SIZE;
-      int tid = threadIdx.x % WARP_SIZE;
-
-
-      if (tid < arg->num_sets) {
-        arg->set1_size[tid] = upper_bound(arg->set1[tid], arg->set1_size[tid], arg->ub[tid]);
-        size_psum[wid][tid] = arg->set1_size[tid];
-        end_pos[wid][tid] = 0;
+      else if (target > set2[mid]) {
+        low = mid + 1;
       }
       else {
-        size_psum[wid][tid] = 0;
+        high = mid - 1;
       }
-      __syncwarp();
-
-      prefix_sum(&size_psum[wid][0], arg->num_sets);
-      __syncwarp();
-
-
-      bool still_loop = true;
-      int slot_idx = 0;
-      int offset = 0;
-
-      int size1 = (size_psum[wid][WARP_SIZE] > 0) ? (((size_psum[wid][WARP_SIZE] - 1) / WARP_SIZE + 1) * WARP_SIZE) : 0;
-
-      for (int idx = tid; (idx < size1 && still_loop); idx += WARP_SIZE) {
-        pos[wid][tid] = 0;
-
-        if (idx < size_psum[wid][WARP_SIZE]) {
-
-          while (idx >= size_psum[wid][slot_idx + 1]) {
-            slot_idx++;
-          }
-          offset = idx - size_psum[wid][slot_idx];
-
-          bitarray32 lb = arg->g->vertex_label[arg->set1[slot_idx][offset]];
-          if ((lb && arg->label == lb) && (DIFF ^ bsearch_exist(arg->set2[slot_idx], arg->set2_size[slot_idx], arg->set1[slot_idx][offset]))) {
-            pos[wid][tid] = 1;
-          }
-        }
-        else {
-          slot_idx = arg->num_sets;
-          still_loop = false;
-        }
-
-        still_loop = __shfl_sync(0xFFFFFFFF, still_loop, 31);
-
-        prefix_sum(&pos[wid][0], WARP_SIZE);
-        __syncwarp();
-
-        graph_node_t res_tmp;
-        if (pos[wid][tid + 1] > pos[wid][tid]) {
-          res_tmp = arg->set1[slot_idx][offset];
-        }
-        __syncwarp();
-        int prev_idx = ((idx / WARP_SIZE == size_psum[wid][slot_idx] / WARP_SIZE) ? size_psum[wid][slot_idx] % WARP_SIZE: 0);
-        
-        if (pos[wid][tid + 1] > pos[wid][tid]) {
-          arg->res[slot_idx][end_pos[wid][slot_idx] + pos[wid][tid] - pos[wid][prev_idx]] = res_tmp;
-        }
-
-        if (slot_idx < __shfl_down_sync(0xFFFFFFFF, slot_idx, 1)) {
-          end_pos[wid][slot_idx] += pos[wid][tid + 1] - pos[wid][prev_idx];
-        }
-        else if (tid == WARP_SIZE - 1 && slot_idx < arg->num_sets) {
-          end_pos[wid][slot_idx] += pos[wid][WARP_SIZE] - pos[wid][prev_idx];
-        }
-      }
-      __syncwarp();
-      if (tid < arg->num_sets) {
-        *(arg->res_size[tid]) = end_pos[wid][tid];
-      }
-      __syncwarp();
     }
+    return false;
+  }
+
+  template<typename DATA_T, typename SIZE_T>
+  inline __device__
+    SIZE_T upper_bound(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
+    int i, step;
+    int low = 0;
+    while (set2_size > 0) {
+      i = low;
+      step = set2_size / 2;
+      i += step;
+      if (target > set2[i]) {
+        low = ++i; set2_size -= step + 1;
+      }
+      else {
+        set2_size = step;
+      }
+    }
+    return low;
+  }
+
+  inline __device__
+    void prefix_sum(int* _input, int input_size) {
+
+    int thid = threadIdx.x % WARP_SIZE;
+    int offset = 1;
+    int last_element = _input[input_size - 1];
+    // build sum in place up the tree
+    for (int d = (WARP_SIZE >> 1); d > 0; d >>= 1) {
+      if (thid < d) {
+        int ai = offset * (2 * thid + 1) - 1;
+        int bi = offset * (2 * thid + 2) - 1;
+        _input[bi] += _input[ai];
+      }
+      offset <<= 1;
+    }
+    if (thid == 0) { _input[WARP_SIZE - 1] = 0; } // clear the last element
+     // traverse down tree & build scan
+    for (int d = 1; d < WARP_SIZE; d <<= 1) {
+      offset >>= 1;
+      if (thid < d) {
+        int ai = offset * (2 * thid + 1) - 1;
+        int bi = offset * (2 * thid + 2) - 1;
+        int t = _input[ai];
+        _input[ai] = _input[bi];
+        _input[bi] += t;
+      }
+    }
+    __syncwarp();
+
+    if (thid >= input_size - 1)
+      _input[thid + 1] = _input[input_size - 1] + last_element;
   }
 
 
-  namespace Serial {
+  template<bool DIFF>
+  __device__ void compute_set(Arg_t* arg) {
 
-    template<bool DIFF>
-    __device__ void compute_set(Arg_t* arg) {
+    __shared__ int pos[NWARPS_PER_BLOCK][WARP_SIZE + 1];
+    __shared__ graph_node_t size_psum[NWARPS_PER_BLOCK][WARP_SIZE + 1];
+    __shared__ int end_pos[NWARPS_PER_BLOCK][UNROLL];
 
-      __shared__ int pos[NWARPS_PER_BLOCK][33];
-
-      int wid = threadIdx.x / WARP_SIZE;
-      int tid = threadIdx.x % WARP_SIZE;
+    int wid = threadIdx.x / WARP_SIZE;
+    int tid = threadIdx.x % WARP_SIZE;
 
 
-      if (tid < arg->num_sets) {
-        arg->set1_size[tid] = Jiang::upper_bound(arg->set1[tid], arg->set1_size[tid], arg->ub[tid]);
+    if (tid < arg->num_sets) {
+      arg->set1_size[tid] = upper_bound(arg->set1[tid], arg->set1_size[tid], arg->ub[tid]);
+      size_psum[wid][tid] = arg->set1_size[tid];
+      end_pos[wid][tid] = 0;
+    }
+    else {
+      size_psum[wid][tid] = 0;
+    }
+    __syncwarp();
+
+    prefix_sum(&size_psum[wid][0], arg->num_sets);
+    __syncwarp();
+
+
+    bool still_loop = true;
+    int slot_idx = 0;
+    int offset = 0;
+
+    int size1 = (size_psum[wid][WARP_SIZE] > 0) ? (((size_psum[wid][WARP_SIZE] - 1) / WARP_SIZE + 1) * WARP_SIZE) : 0;
+
+    for (int idx = tid; (idx < size1 && still_loop); idx += WARP_SIZE) {
+      pos[wid][tid] = 0;
+
+      if (idx < size_psum[wid][WARP_SIZE]) {
+
+        while (idx >= size_psum[wid][slot_idx + 1]) {
+          slot_idx++;
+        }
+        offset = idx - size_psum[wid][slot_idx];
+
+        bitarray32 lb = arg->g->vertex_label[arg->set1[slot_idx][offset]];
+        if ((lb && arg->label == lb) && (DIFF ^ bsearch_exist(arg->set2[slot_idx], arg->set2_size[slot_idx], arg->set1[slot_idx][offset]))) {
+          pos[wid][tid] = 1;
+        }
       }
+      else {
+        slot_idx = arg->num_sets;
+        still_loop = false;
+      }
+
+      still_loop = __shfl_sync(0xFFFFFFFF, still_loop, 31);
+
+      prefix_sum(&pos[wid][0], WARP_SIZE);
       __syncwarp();
 
-      for (int i = 0; i < arg->num_sets; i++) {
-        bool still_loop = true;
+      graph_node_t res_tmp;
+      if (pos[wid][tid + 1] > pos[wid][tid]) {
+        res_tmp = arg->set1[slot_idx][offset];
+      }
+      __syncwarp();
+      int prev_idx = ((idx / WARP_SIZE == size_psum[wid][slot_idx] / WARP_SIZE) ? size_psum[wid][slot_idx] % WARP_SIZE : 0);
 
-        int end_pos = 0;
+      if (pos[wid][tid + 1] > pos[wid][tid]) {
+        arg->res[slot_idx][end_pos[wid][slot_idx] + pos[wid][tid] - pos[wid][prev_idx]] = res_tmp;
+      }
 
-        if (arg->set1_size[i] > 0) {
-
-          for (int idx = tid; (idx < (((arg->set1_size[i] - 1) / WARP_SIZE + 1) * WARP_SIZE) && still_loop); idx += WARP_SIZE) {
-            pos[wid][tid] = 0;
-            pos[wid][WARP_SIZE] = 0;
-            if (idx < arg->set1_size[i]) {
-              bitarray32 lb = arg->g->vertex_label[arg->set1[i][idx]];
-              if ((lb && arg->label == lb) && (DIFF ^ Jiang::bsearch_exist(arg->set2[i], arg->set2_size[i], arg->set1[i][idx]))) {
-                pos[wid][tid] = 1;
-              }
-            }
-            else {
-              still_loop = false;
-            }
-            still_loop = __shfl_sync(0xFFFFFFFF, still_loop, 31);
-
-            Jiang::prefix_sum(&pos[wid][0], WARP_SIZE);
-
-            graph_node_t res_tmp;
-            if (pos[wid][tid + 1] > pos[wid][tid]) {
-              res_tmp = arg->set1[i][idx];
-            }
-            __syncwarp();
-            if (pos[wid][tid + 1] > pos[wid][tid]) {
-              arg->res[i][end_pos + pos[wid][tid]] = res_tmp;
-            }
-            end_pos += pos[wid][WARP_SIZE];
-          }
-        }
-        *(arg->res_size[i]) = end_pos;
+      if (slot_idx < __shfl_down_sync(0xFFFFFFFF, slot_idx, 1)) {
+        end_pos[wid][slot_idx] += pos[wid][tid + 1] - pos[wid][prev_idx];
+      }
+      else if (tid == WARP_SIZE - 1 && slot_idx < arg->num_sets) {
+        end_pos[wid][slot_idx] += pos[wid][WARP_SIZE] - pos[wid][prev_idx];
       }
     }
+    __syncwarp();
+    if (tid < arg->num_sets) {
+      *(arg->res_size[tid]) = end_pos[wid][tid];
+    }
+    __syncwarp();
   }
 
   __device__ void lock(int* mutex) {
@@ -251,8 +192,6 @@ namespace libra {
   }
 
   __device__ void extend(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, pattern_node_t level) {
-
-    using namespace Jiang;
 
     __shared__ Arg_t arg[NWARPS_PER_BLOCK];
     int wid = threadIdx.x / WARP_SIZE;
@@ -335,9 +274,11 @@ namespace libra {
           graph_node_t* nb = NULL;
           graph_node_t nsize = 0;
 
-          if (level >= 2) {
-            nb = &g->colidx[g->rowptr[path(stk, level - 2, stk->uiter[level - 1])]];
-            nsize = (graph_node_t)(g->rowptr[path(stk, level - 2, stk->uiter[level - 1]) + 1] - g->rowptr[path(stk, level - 2, stk->uiter[level - 1])]);
+          if (!EDGE_INDUCED) {
+            if (level >= 2) {
+              nb = &g->colidx[g->rowptr[path(stk, level - 2, stk->uiter[level - 1])]];
+              nsize = (graph_node_t)(g->rowptr[path(stk, level - 2, stk->uiter[level - 1]) + 1] - g->rowptr[path(stk, level - 2, stk->uiter[level - 1])]);
+            }
           }
 
 
@@ -355,23 +296,23 @@ namespace libra {
           for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[level][i][k] = 0;
 
 
+          if (!EDGE_INDUCED) {
+            for (pattern_node_t j = level - 3; j >= 0; j--) {
 
-          for (pattern_node_t j = level - 3; j >= 0; j--) {
+              nb = &g->colidx[g->rowptr[path(stk, j, stk->uiter[j + 1])]];
+              nsize = (graph_node_t)(g->rowptr[path(stk, j, stk->uiter[j + 1]) + 1] - g->rowptr[path(stk, j, stk->uiter[j + 1])]);
 
-            nb = &g->colidx[g->rowptr[path(stk, j, stk->uiter[j + 1])]];
-            nsize = (graph_node_t)(g->rowptr[path(stk, j, stk->uiter[j + 1]) + 1] - g->rowptr[path(stk, j, stk->uiter[j + 1])]);
-
-            for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
-              arg[wid].set1[k] = &(stk->slot_storage[level][i][k][0]);
-              arg[wid].set2[k] = nb;
-              arg[wid].res[k] = &(stk->slot_storage[level][i][k][0]);
-              arg[wid].set1_size[k] = stk->slot_size[level][i][k];
-              arg[wid].set2_size[k] = nsize;
-              arg[wid].res_size[k] = &(stk->slot_size[level][i][k]);
+              for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
+                arg[wid].set1[k] = &(stk->slot_storage[level][i][k][0]);
+                arg[wid].set2[k] = nb;
+                arg[wid].res[k] = &(stk->slot_storage[level][i][k][0]);
+                arg[wid].set1_size[k] = stk->slot_size[level][i][k];
+                arg[wid].set2_size[k] = nsize;
+                arg[wid].res_size[k] = &(stk->slot_size[level][i][k]);
+              }
+              compute_set<true>(&arg[wid]);
+              for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[level][i][k] = 0;
             }
-            compute_set<true>(&arg[wid]);
-            for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[level][i][k] = 0;
-
           }
         }
         else {
@@ -397,8 +338,12 @@ namespace libra {
           else {
 
             for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
-              graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, level - 1, k)]];
-              graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, level - 1, k) + 1] - g->rowptr[path(stk, level - 1, k)]);
+              graph_node_t* neighbor = NULL;
+              graph_node_t neighbor_size = 0;
+              if (!EDGE_INDUCED) {
+                neighbor = &g->colidx[g->rowptr[path(stk, level - 1, k)]];
+                neighbor_size = (graph_node_t)(g->rowptr[path(stk, level - 1, k) + 1] - g->rowptr[path(stk, level - 1, k)]);
+              }
               arg[wid].set1[k] = &(stk->slot_storage[level - 1][slot_idx][stk->uiter[level - 1]][0]);
               arg[wid].set2[k] = neighbor;
               arg[wid].res[k] = &(stk->slot_storage[level][i][k][0]);
@@ -451,7 +396,7 @@ namespace libra {
           stk->uiter[level] = 0;
           if (level > 0) {
             level--;
-            if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level+1);
+            if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level + 1);
             __syncwarp();
           }
         }
@@ -468,7 +413,7 @@ namespace libra {
           stk->slot_size[level][0][j] = 0;
         }
         level--;
-        if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level+1);
+        if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level + 1);
         __syncwarp();
       }
     }
