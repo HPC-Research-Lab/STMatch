@@ -20,8 +20,8 @@ namespace libra {
   } Arg_t;
 
   template<typename DATA_T, typename SIZE_T>
-  __device__
-    inline bool bsearch_exist(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
+  inline __device__
+    bool bsearch_exist(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
     int mid;
     int low = 0;
     int high = set2_size - 1;
@@ -174,21 +174,26 @@ namespace libra {
     __syncwarp();
   }
 
-  __device__ void lock(int* mutex) {
+  inline __device__ void lock(int* mutex) {
     while (atomicCAS(mutex, 0, 1) != 0);
   }
 
-  __device__ void unlock(int* mutex) {
+  inline __device__ void unlock(int* mutex) {
     atomicExch(mutex, 0);
   }
 
-  __device__ void get_job(JobQueue* q, graph_node_t& cur_pos, graph_node_t& njobs) {
+  inline __device__ void get_job(JobQueue* q, graph_node_t& cur_pos, graph_node_t& njobs) {
     lock(&(q->mutex));
     cur_pos = q->cur;
     q->cur += JOB_CHUNK_SIZE;
     if (q->cur > q->length) q->cur = q->length;
     njobs = q->cur - cur_pos;
     unlock(&(q->mutex));
+    // cur_pos = atomicAdd(&q->cur, JOB_CHUNK_SIZE);
+    // if (cur_pos < q->length) {
+    //   njobs = (cur_pos + JOB_CHUNK_SIZE > q->length) ?  q->length - cur_pos : JOB_CHUNK_SIZE;
+    // }
+    // else njobs = 0;
   }
 
   __device__ void extend(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, pattern_node_t level) {
