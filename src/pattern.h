@@ -344,15 +344,17 @@ namespace libra {
       int count = 1;
       pat.rowptr[0] = 0;
       pat.rowptr[1] = 1;
-      for (int i = 1; i < pat.nnodes; i++) {
+      pat.partial[0] = partial[0][0];
+      for (int i = 1; i < pat.nnodes - 1; i++) {
         for (int j = 0; j < PAT_SIZE; j++) {
-          if (set_ops[i - 1][j] < 0) break;
+          if (set_ops[i][j] < 0) break;
           onedidx[i][j] = count;
-          pat.slot_labels[count] = slot_labels[i - 1][j];
-          pat.partial[count] = partial[i - 1][j];
-          int idx = onedidx[i - 1][(set_ops[i - 1][j] & 0x0F)];
+          pat.slot_labels[count] = slot_labels[i][j];
+          pat.partial[count] = partial[i][j];
+          int idx = 0;
+          if (i > 1) idx = onedidx[i - 1][(set_ops[i][j] & 0x0F)];
           assert(idx < 31);
-          pat.set_ops[count] = ((set_ops[i - 1][j] & 0x30) << 1) + idx;
+          pat.set_ops[count] = ((set_ops[i][j] & 0x30) << 1) + idx;
           count++;
         }
         pat.rowptr[i + 1] = count;
