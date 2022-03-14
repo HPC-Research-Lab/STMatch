@@ -244,7 +244,6 @@ namespace libra {
           for (pattern_node_t k = 1; k < level - 1; k++) {
             if ((pat->partial[i] & (1 << (k + stk->start_level - 1))) && ((i == pat->rowptr[level]) ^ (ub < path(stk, pat, k, stk->uiter[k + 1])))) ub = path(stk, pat, k, stk->uiter[k + 1]);
           }
-
           // compute ub with nodes in the previous level
           for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
             arg[wid].ub[k] = ub;
@@ -269,47 +268,40 @@ namespace libra {
 
         if (pat->set_ops[i] & 0x20) {
 
-          graph_node_t* nb = NULL;
-          graph_node_t nsize = 0;
-
           for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
+
+            arg[wid].set2[k] = NULL;
+            arg[wid].set2_size[k] = 0;
+
             if (!EDGE_INDUCED) {
-              int preprev_level = ((level > 2) ? level - 2 : level - stk->start_level);
-              int prev_iter = ((level > 1) ? stk->uiter[level - 1] : k);
-              nb = &g->colidx[g->rowptr[path(stk, pat, preprev_level, prev_iter)]];
-              nsize = (graph_node_t)(g->rowptr[path(stk, pat, preprev_level, prev_iter) + 1] - g->rowptr[path(stk, pat, preprev_level, prev_iter)]);
+              graph_node_t t = path(stk, pat, level - 2, ((level > 1) ? stk->uiter[level - 1] : k));
+              arg[wid].set2[k] = &g->colidx[g->rowptr[t]];
+              arg[wid].set2_size[k] = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
             }
-            graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, pat, level - 1, k)]];
-            graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, pat, level - 1, k) + 1] - g->rowptr[path(stk, pat, level - 1, k)]);
-            arg[wid].set1[k] = neighbor;
-            arg[wid].set2[k] = nb;
+            graph_node_t t = path(stk, pat, level - 1, k);
+            arg[wid].set1[k] = &g->colidx[g->rowptr[t]];
             arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
-            arg[wid].set1_size[k] = neighbor_size;
-            arg[wid].set2_size[k] = nsize;
+            arg[wid].set1_size[k] = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
             arg[wid].res_size[k] = &(stk->slot_size[i][k]);
           }
           compute_set<true>(&arg[wid]);
-          for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
-
 
           if (!EDGE_INDUCED) {
             for (pattern_node_t j = level - 3; j >= 1 - stk->start_level; j--) {
-              graph_node_t l = stk->uiter[(j > 0 ? j + 1 : 1)];
-              nb = &g->colidx[g->rowptr[path(stk, pat, j, l)]];
-              nsize = (graph_node_t)(g->rowptr[path(stk, pat, j, l) + 1] - g->rowptr[path(stk, pat, j, l)]);
-
+              graph_node_t t = path(stk, pat, j, stk->uiter[(j > 0 ? j + 1 : 1)]);
+              
               for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
                 arg[wid].set1[k] = &(stk->slot_storage[i][k][0]);
-                arg[wid].set2[k] = nb;
+                arg[wid].set2[k] = &g->colidx[g->rowptr[t]];
                 arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
                 arg[wid].set1_size[k] = stk->slot_size[i][k];
-                arg[wid].set2_size[k] = nsize;
+                arg[wid].set2_size[k] = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
                 arg[wid].res_size[k] = &(stk->slot_size[i][k]);
               }
               compute_set<true>(&arg[wid]);
-              for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
             }
           }
+          for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
         }
         else {
 
@@ -317,16 +309,18 @@ namespace libra {
 
           if (pat->set_ops[i] & 0x40) {
             for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
-              graph_node_t* neighbor = &g->colidx[g->rowptr[path(stk, pat, level - 1, k)]];
-              graph_node_t neighbor_size = (graph_node_t)(g->rowptr[path(stk, pat, level - 1, k) + 1] - g->rowptr[path(stk, pat, level - 1, k)]);
+              graph_node_t t = path(stk, pat, level - 1, k);
+              graph_node_t* neighbor = &g->colidx[g->rowptr[t]];
+              graph_node_t neighbor_size = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
 
               if (level > 1) {
                 arg[wid].set1[k] = &(stk->slot_storage[slot_idx][stk->uiter[level - 1]][0]);
                 arg[wid].set1_size[k] = stk->slot_size[slot_idx][stk->uiter[level - 1]];
               }
               else {
-                arg[wid].set1[k] = &g->colidx[g->rowptr[path(stk, pat, -1, k)]];
-                arg[wid].set1_size[k] = (graph_node_t)(g->rowptr[path(stk, pat, -1, k) + 1] - g->rowptr[path(stk, pat, -1, k)]);
+                graph_node_t t = path(stk, pat, -1, k);
+                arg[wid].set1[k] = &g->colidx[g->rowptr[t]];
+                arg[wid].set1_size[k] = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
               }
 
               arg[wid].set2[k] = neighbor;
@@ -344,8 +338,9 @@ namespace libra {
               graph_node_t* neighbor = NULL;
               graph_node_t neighbor_size = 0;
               if (!EDGE_INDUCED) {
-                neighbor = &g->colidx[g->rowptr[path(stk, pat, level - 1, k)]];
-                neighbor_size = (graph_node_t)(g->rowptr[path(stk, pat, level - 1, k) + 1] - g->rowptr[path(stk, pat, level - 1, k)]);
+                graph_node_t t = path(stk, pat, level - 1, k);
+                neighbor = &g->colidx[g->rowptr[t]];
+                neighbor_size = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
               }
 
               if (level > 1) {
@@ -353,8 +348,9 @@ namespace libra {
                 arg[wid].set1_size[k] = stk->slot_size[slot_idx][stk->uiter[level - 1]];
               }
               else {
-                arg[wid].set1[k] = &g->colidx[g->rowptr[path(stk, pat, -1, k)]];
-                arg[wid].set1_size[k] = (graph_node_t)(g->rowptr[path(stk, pat, -1, k) + 1] - g->rowptr[path(stk, pat, -1, k)]);
+                graph_node_t t = path(stk, pat, -1, k);
+                arg[wid].set1[k] = &g->colidx[g->rowptr[t]];
+                arg[wid].set1_size[k] = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
               }
 
               arg[wid].set2[k] = neighbor;
