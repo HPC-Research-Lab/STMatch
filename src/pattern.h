@@ -181,7 +181,8 @@ namespace libra {
           if (op2 > 0) {
             bool exist = false;
             // k starts from 1 to make sure candidate sets are not used for computing slots 
-            int startk = ((!LABELED && partial[i - 1][0] == 0) ? 0 : 1);
+            //int startk = ((!LABELED && partial[i - 1][0] == 0) ? 0 : 1);
+            int startk = 1;
             for (int k = startk; k < length[i - 1]; k++) {
               if (op2 == board[i - 1][k]) {
                 exist = true;

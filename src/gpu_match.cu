@@ -1,4 +1,5 @@
 #include "gpu_match.cuh"
+#include "trans_stk.h"
 #include <cuda.h>
 
 // TODO: change this to gpu array so we can use different unroll for diffrent levels
@@ -176,14 +177,6 @@ namespace libra {
       *(arg->res_size[tid]) = end_pos[wid][tid];
     }
     __syncwarp();
-  }
-
-  inline __device__ void lock(int* mutex) {
-    while (atomicCAS(mutex, 0, 1) != 0);
-  }
-
-  inline __device__ void unlock(int* mutex) {
-    atomicExch(mutex, 0);
   }
 
   inline __device__ void get_job(JobQueue* q, graph_node_t& cur_pos, graph_node_t& njobs) {
@@ -369,32 +362,43 @@ namespace libra {
     stk->uiter[level] = 0;
   }
 
-  __device__ void match(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, size_t* count) {
-    pattern_node_t level = 0;
-
+  __device__ void match(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, size_t* count, int* mutex) {
+    //pattern_node_t level = 0;
+    //printf("stk->start_level:%d\n", stk->start_level);
+    pattern_node_t& level = stk->level;
     while (true) {
+      __syncwarp();
+      if (threadIdx.x % WARP_SIZE == 0){
+        lock(mutex);
+      }
+      __syncwarp();
 
       if (level < pat->nnodes - stk->start_level) {
 
         if (stk->uiter[level] == 0 && stk->slot_size[pat->rowptr[level]][0] == 0) {
           extend(g, pat, stk, q, level);
-          if (level == 0 && stk->slot_size[0][0] == 0) break;
+          if (level == 0 && stk->slot_size[0][0] == 0) {
+              __syncwarp();
+              if (threadIdx.x % WARP_SIZE == 0) unlock(mutex);
+              __syncwarp();
+              break;
+          }
         }
 
         if (stk->uiter[level] < UNROLL_SIZE(level)) {
           if (stk->iter[level] < stk->slot_size[pat->rowptr[level]][stk->uiter[level]]) {
-            level++;
+            if (threadIdx.x % WARP_SIZE == 0) level++;
           }
           else {
             stk->slot_size[pat->rowptr[level]][stk->uiter[level]] = 0;
             stk->iter[level] = 0;
-            stk->uiter[level]++;
+             if (threadIdx.x % WARP_SIZE == 0) stk->uiter[level]++;
           }
         }
         else {
           stk->uiter[level] = 0;
           if (level > 0) {
-            level--;
+            if (threadIdx.x % WARP_SIZE == 0) level--;
             if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level + 1);
             __syncwarp();
           }
@@ -411,10 +415,12 @@ namespace libra {
           __syncwarp();
           stk->slot_size[pat->rowptr[level]][j] = 0;
         }
-        level--;
+        if (threadIdx.x % WARP_SIZE == 0) level--;
         if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level + 1);
         __syncwarp();
       }
+      __syncwarp();
+      if (threadIdx.x % WARP_SIZE == 0) unlock(mutex);
     }
   }
 
@@ -424,6 +430,9 @@ namespace libra {
     __shared__ Pattern pat;
     __shared__ CallStack stk[NWARPS_PER_BLOCK];
     __shared__ size_t count[NWARPS_PER_BLOCK];
+
+    __shared__ bool trans_success[NWARPS_PER_BLOCK];
+    __shared__ int mutex_this_block[NWARPS_PER_BLOCK];
 
     int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
     int global_wid = global_tid / WARP_SIZE;
@@ -442,8 +451,22 @@ namespace libra {
 
     auto start = clock64();
     while (true) {
-      match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid]);
-      break;
+      __syncwarp();
+      match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid], &mutex_this_block[local_wid]);
+      __syncwarp();
+      //break;
+      //trans_success[local_wid]=false;
+      if(threadIdx.x % WARP_SIZE == 0){
+        trans_success[local_wid] = trans_skt(stk,  &stk[local_wid],  &pat, mutex_this_block);
+      }
+       __syncwarp();
+      
+      if(trans_success[local_wid]){
+         continue;
+      }
+      else{
+          break;
+      }
       // TODO: load balance
     }
     auto stop = clock64();
