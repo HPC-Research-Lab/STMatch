@@ -16,7 +16,7 @@ namespace libra {
   inline constexpr bool EDGE_INDUCED = false;
 
   inline constexpr int GRID_DIM = 80;
-  inline constexpr int BLOCK_DIM = 1024;
+  inline constexpr int BLOCK_DIM = 512;
   inline constexpr int WARP_SIZE = 32;
   inline constexpr int NWARPS_PER_BLOCK = (BLOCK_DIM / WARP_SIZE);
   inline constexpr int NWARPS_TOTAL = ((GRID_DIM * BLOCK_DIM + WARP_SIZE - 1) / WARP_SIZE);

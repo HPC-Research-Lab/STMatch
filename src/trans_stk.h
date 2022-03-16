@@ -38,6 +38,16 @@ __device__ void print_stk(CallStack* _stk,  Pattern* pat){
     printf("\n");
 }
 
+
+__device__
+bool trans_layer0(CallStack& _target_stk, CallStack& _cur_stk, Pattern* pat){
+    int left_task = JOB_CHUNK_SIZE - _target_stk.iter[0] - UNROLL;
+    if(left_task<=0) return false;
+    memcpy((_cur_stk.slot_storage[pat->rowptr[0]]), (_target_stk.slot_storage[pat->rowptr[0]]),  GRAPH_DEGREE*UNROLL*sizeof(graph_node_t));
+    _cur_stk.iter[0] = _target_stk.iter[0]+UNROLL;
+}
+
+
 __device__
 bool trans_layerk_in_unroll_slot(CallStack& _target_stk, CallStack& _cur_stk,  Pattern* pat, int _k){
 
@@ -52,9 +62,9 @@ bool trans_layerk_in_unroll_slot(CallStack& _target_stk, CallStack& _cur_stk,  P
         //graph_node_t (*slot_storage)[UNROLL][GRAPH_DEGREE] = _cur_stk.slot_storage;
         //_cur_stk = _target_stk;
         //_cur_stk.slot_storage = slot_storage;
-        printf("k:%d, slot_size:%d, iter:%d, target_left_task:%d, cur_left_task:%d, stealed_start_idx_in_target:%d\n", 
-               _k, _target_stk.slot_size[pat->rowptr[_k]][_target_stk.uiter[_k]], _target_stk.iter[_k], 
-                target_left_task, cur_left_task, stealed_start_idx_in_target);
+        //printf("k:%d, slot_size:%d, iter:%d, target_left_task:%d, cur_left_task:%d, stealed_start_idx_in_target:%d\n", 
+        //       _k, _target_stk.slot_size[pat->rowptr[_k]][_target_stk.uiter[_k]], _target_stk.iter[_k], 
+        //        target_left_task, cur_left_task, stealed_start_idx_in_target);
 
         for(int i=0; i<=_k; i++){
             memcpy((_cur_stk.slot_storage[pat->rowptr[i]]), (_target_stk.slot_storage[pat->rowptr[i]]),  (pat->rowptr[i+1]-pat->rowptr[i])*GRAPH_DEGREE*UNROLL*sizeof(graph_node_t));
@@ -66,7 +76,12 @@ bool trans_layerk_in_unroll_slot(CallStack& _target_stk, CallStack& _cur_stk,  P
             _cur_stk.uiter[l]=_target_stk.uiter[l];
             for(int s = pat->rowptr[l]; s<pat->rowptr[l+1]; s++){
                for(int u = 0; u<UNROLL; u++){
-                   if(l<_k)  _cur_stk.slot_size[s][u] = 0;
+                   if(l<_k)  {
+                       if(l>=0 && s==pat->rowptr[l] && u==_target_stk.uiter[l]) 
+                          //printf("l:%d, _target_stk.slot_size:%d, iter:%d\n",  l, _target_stk.slot_size[s][u], _target_stk.iter[l]);
+                         _cur_stk.slot_size[s][u] = 0;
+                         //_cur_stk.slot_size[s][u] = _target_stk.slot_size[s][u];
+                   }
                     else _cur_stk.slot_size[s][u] = _target_stk.slot_size[s][u];
                }
             }
@@ -109,10 +124,12 @@ bool trans_layerk_in_unroll_slot(CallStack& _target_stk, CallStack& _cur_stk,  P
         for(int level = 1; level<4; level++){
             for(int i=0; i<NWARPS_PER_BLOCK; i++){
                 if(i==threadIdx.x / WARP_SIZE) continue;
+                //printf("slot_size 0:%d\n", _all_stk[i].slot_size[0][1]);
+               // continue;
                 if(level==0){
                     int left_task = JOB_CHUNK_SIZE - _all_stk[i].iter[0] - UNROLL;
                     if(left_task>0){
-                        printf("Warp:%d, left_task:%d\n", i, left_task);
+                        //printf("Warp:%d, left_task:%d\n", i, left_task);
                     }
                 }
                 else if(level>0 && _all_stk[i].level > level){
