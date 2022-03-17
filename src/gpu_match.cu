@@ -457,7 +457,7 @@ namespace libra {
       __syncwarp();
       match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid], &mutex_this_block[local_wid]);
       __syncwarp();
-      //break;
+      break;
 
       //trans_success[local_wid]=false;
       if(threadIdx.x % WARP_SIZE == 0){

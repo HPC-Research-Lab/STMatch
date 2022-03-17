@@ -8,15 +8,15 @@ namespace libra {
   typedef char set_op_t;
   typedef unsigned int bitarray32;
 
-  inline constexpr size_t PAT_SIZE = 5;
+  inline constexpr size_t PAT_SIZE = 6;
   inline constexpr size_t GRAPH_DEGREE = 99;
   inline constexpr size_t MAX_SLOT_NUM = 10;
 
   inline constexpr bool LABELED = false;
   inline constexpr bool EDGE_INDUCED = false;
 
-  inline constexpr int GRID_DIM = 1;
-  inline constexpr int BLOCK_DIM = 512;
+  inline constexpr int GRID_DIM = 80;
+  inline constexpr int BLOCK_DIM = 1024;
   inline constexpr int WARP_SIZE = 32;
   inline constexpr int NWARPS_PER_BLOCK = (BLOCK_DIM / WARP_SIZE);
   inline constexpr int NWARPS_TOTAL = ((GRID_DIM * BLOCK_DIM + WARP_SIZE - 1) / WARP_SIZE);

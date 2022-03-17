@@ -102,7 +102,7 @@ bool trans_layer(CallStack& _target_stk, CallStack& _cur_stk, Pattern* _pat, int
     
     int stealed_start_idx_in_target = _target_stk.iter[_k] + _target_stk.uiter[_k+1] + 1 + num_left_task/2;
     //_cur_stk = _target_stk;
-    
+    /*
     printf("_k:%d, slot_size:%d, uiter:%d,  iter:%d, uiter_k+1:%d, slot_size_k+1:%d, stealed_start_idx_in_target:%d, _target_stk.level:%d\n", 
            _k,  
            _target_stk.slot_size[_pat->rowptr[_k]][_target_stk.uiter[_k]], 
@@ -111,6 +111,7 @@ bool trans_layer(CallStack& _target_stk, CallStack& _cur_stk, Pattern* _pat, int
            _target_stk.slot_size[_pat->rowptr[_k+1]][_target_stk.uiter[_k+1]], 
            _target_stk.uiter[_k+1], stealed_start_idx_in_target, 
            _target_stk.level);
+    */
     for(int i=0; i<=_k; i++){
          memcpy((_cur_stk.slot_storage[_pat->rowptr[i]]), (_target_stk.slot_storage[_pat->rowptr[i]]),  (_pat->rowptr[i+1]-_pat->rowptr[i])*GRAPH_DEGREE*UNROLL*sizeof(graph_node_t));
     }
@@ -171,7 +172,7 @@ int trans_skt(CallStack* _all_stk, CallStack* _cur_stk, Pattern* pat, int* _mute
         int at_level = -1;
         //int task_level = -1;
         
-        for(int level = 0; level<3; level++){
+        for(int level = 0; level<2; level++){
             for(int i=0; i<NWARPS_PER_BLOCK; i++){
                 
                 if(i==threadIdx.x / WARP_SIZE) continue;
