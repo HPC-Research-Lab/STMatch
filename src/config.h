@@ -9,13 +9,13 @@ namespace libra {
   typedef unsigned int bitarray32;
 
   inline constexpr size_t PAT_SIZE = 5;
-  inline constexpr size_t GRAPH_DEGREE = 4096;
+  inline constexpr size_t GRAPH_DEGREE = 99;
   inline constexpr size_t MAX_SLOT_NUM = 10;
 
   inline constexpr bool LABELED = false;
   inline constexpr bool EDGE_INDUCED = false;
 
-  inline constexpr int GRID_DIM = 80;
+  inline constexpr int GRID_DIM = 1;
   inline constexpr int BLOCK_DIM = 512;
   inline constexpr int WARP_SIZE = 32;
   inline constexpr int NWARPS_PER_BLOCK = (BLOCK_DIM / WARP_SIZE);

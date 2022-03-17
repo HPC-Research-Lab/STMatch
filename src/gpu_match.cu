@@ -367,7 +367,6 @@ namespace libra {
     //printf("stk->start_level:%d\n", stk->start_level);
     pattern_node_t& level = stk->level;
     while (true) {
-      __syncwarp();
       if (threadIdx.x % WARP_SIZE == 0){
         lock(mutex);
       }
@@ -378,7 +377,6 @@ namespace libra {
         if (stk->uiter[level] == 0 && stk->slot_size[pat->rowptr[level]][0] == 0) {
           extend(g, pat, stk, q, level);
           if (level == 0 && stk->slot_size[0][0] == 0) {
-              __syncwarp();
               if (threadIdx.x % WARP_SIZE == 0) unlock(mutex);
               __syncwarp();
               break;
@@ -388,11 +386,13 @@ namespace libra {
         if (stk->uiter[level] < UNROLL_SIZE(level)) {
           if (stk->iter[level] < stk->slot_size[pat->rowptr[level]][stk->uiter[level]]) {
             if (threadIdx.x % WARP_SIZE == 0) level++;
+            __syncwarp();
           }
           else {
             stk->slot_size[pat->rowptr[level]][stk->uiter[level]] = 0;
             stk->iter[level] = 0;
              if (threadIdx.x % WARP_SIZE == 0) stk->uiter[level]++;
+             __syncwarp();
           }
         }
         else {
@@ -419,8 +419,9 @@ namespace libra {
         if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level + 1);
         __syncwarp();
       }
-      __syncwarp();
+      //__syncwarp();
       if (threadIdx.x % WARP_SIZE == 0) unlock(mutex);
+      __syncwarp();
     }
   }
 
@@ -431,7 +432,8 @@ namespace libra {
     __shared__ CallStack stk[NWARPS_PER_BLOCK];
     __shared__ size_t count[NWARPS_PER_BLOCK];
 
-    __shared__ bool trans_success[NWARPS_PER_BLOCK];
+    __shared__ int stealed_idx[NWARPS_PER_BLOCK];
+
     __shared__ int mutex_this_block[NWARPS_PER_BLOCK];
 
     int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -450,30 +452,44 @@ namespace libra {
     __syncwarp();
 
     auto start = clock64();
+    
     while (true) {
       __syncwarp();
       match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid], &mutex_this_block[local_wid]);
       __syncwarp();
       //break;
+
       //trans_success[local_wid]=false;
       if(threadIdx.x % WARP_SIZE == 0){
-        trans_success[local_wid] = trans_skt(stk,  &stk[local_wid],  &pat, mutex_this_block);
+        stealed_idx[local_wid] = trans_skt(stk,  &stk[local_wid],  &pat, mutex_this_block);
       }
+
        __syncwarp();
+
+      //break;
       
-      if(trans_success[local_wid]){
+     
+      if(stealed_idx[local_wid]!=-1){
+        //printf("stealed_idx:%d\n", stealed_idx[local_wid]);
+        //break;
          continue;
       }
       else{
           break;
       }
-      // TODO: load balance
     }
+
     auto stop = clock64();
+   
 
     if (threadIdx.x % WARP_SIZE == 0) {
       res[global_wid] = count[local_wid];
+      //printf("%d\t%ld\t%d\t%d\n", blockIdx.x, stop - start, stealed[local_wid], local_wid);
       //printf("%ld\n", stop - start);
     }
+    /*
+    if(threadIdx.x % WARP_SIZE == 0)
+      printf("%d\t%d\t%d\n", blockIdx.x, local_wid, mutex_this_block[local_wid]);
+    */
   }
 }
