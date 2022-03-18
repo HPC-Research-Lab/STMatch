@@ -10,12 +10,12 @@ namespace libra {
 
   inline constexpr size_t PAT_SIZE = 6;
   inline constexpr size_t GRAPH_DEGREE = 99;
-  inline constexpr size_t MAX_SLOT_NUM = 10;
+  inline constexpr size_t MAX_SLOT_NUM = 12;
 
   inline constexpr bool LABELED = false;
   inline constexpr bool EDGE_INDUCED = false;
 
-  inline constexpr int GRID_DIM = 80;
+  inline constexpr int GRID_DIM = 82;
   inline constexpr int BLOCK_DIM = 1024;
   inline constexpr int WARP_SIZE = 32;
   inline constexpr int NWARPS_PER_BLOCK = (BLOCK_DIM / WARP_SIZE);

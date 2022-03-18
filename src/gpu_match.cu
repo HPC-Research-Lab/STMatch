@@ -432,7 +432,7 @@ namespace libra {
     __shared__ CallStack stk[NWARPS_PER_BLOCK];
     __shared__ size_t count[NWARPS_PER_BLOCK];
 
-    __shared__ int stealed_idx[NWARPS_PER_BLOCK];
+    __shared__ bool stealed[NWARPS_PER_BLOCK];
 
     __shared__ int mutex_this_block[NWARPS_PER_BLOCK];
 
@@ -457,11 +457,11 @@ namespace libra {
       __syncwarp();
       match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid], &mutex_this_block[local_wid]);
       __syncwarp();
-      break;
+      //break;
 
       //trans_success[local_wid]=false;
       if(threadIdx.x % WARP_SIZE == 0){
-        stealed_idx[local_wid] = trans_skt(stk,  &stk[local_wid],  &pat, mutex_this_block);
+        stealed[local_wid] = trans_skt(stk,  &stk[local_wid],  &pat, mutex_this_block);
       }
 
        __syncwarp();
@@ -469,7 +469,7 @@ namespace libra {
       //break;
       
      
-      if(stealed_idx[local_wid]!=-1){
+      if(stealed[local_wid]){
         //printf("stealed_idx:%d\n", stealed_idx[local_wid]);
         //break;
          continue;
