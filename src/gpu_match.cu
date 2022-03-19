@@ -100,7 +100,6 @@ namespace libra {
 
   template<bool DIFF>
   __device__ void compute_set(Arg_t* arg) {
-
     __shared__ int pos[NWARPS_PER_BLOCK][WARP_SIZE + 1];
     __shared__ graph_node_t size_psum[NWARPS_PER_BLOCK][WARP_SIZE + 1];
     __shared__ int end_pos[NWARPS_PER_BLOCK][UNROLL];
@@ -126,11 +125,12 @@ namespace libra {
     bool still_loop = true;
     int slot_idx = 0;
     int offset = 0;
+    int predicate;
 
     int size1 = (size_psum[wid][WARP_SIZE] > 0) ? (((size_psum[wid][WARP_SIZE] - 1) / WARP_SIZE + 1) * WARP_SIZE) : 0;
 
     for (int idx = tid; (idx < size1 && still_loop); idx += WARP_SIZE) {
-      pos[wid][tid] = 0;
+      predicate = 0;
 
       if (idx < size_psum[wid][WARP_SIZE]) {
 
@@ -141,7 +141,7 @@ namespace libra {
 
         bitarray32 lb = arg->g->vertex_label[arg->set1[slot_idx][offset]];
         if ((lb && arg->label == lb) && (DIFF ^ bsearch_exist(arg->set2[slot_idx], arg->set2_size[slot_idx], arg->set1[slot_idx][offset]))) {
-          pos[wid][tid] = 1;
+          predicate = 1;
         }
       }
       else {
@@ -150,9 +150,11 @@ namespace libra {
       }
 
       still_loop = __shfl_sync(0xFFFFFFFF, still_loop, 31);
-
-      prefix_sum(&pos[wid][0], WARP_SIZE);
+      predicate = __ballot_sync(0xFFFFFFFF, predicate);
+      pos[wid][tid] = __popc(predicate & ((1 << tid) - 1));
+      pos[wid][WARP_SIZE] = __popc(predicate);
       __syncwarp();
+
 
       graph_node_t res_tmp;
       if (pos[wid][tid + 1] > pos[wid][tid]) {
