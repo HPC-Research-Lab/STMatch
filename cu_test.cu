@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
   // allocate the callstack for all warps in global memory
   graph_node_t* slot_storage;
   cudaMalloc(&slot_storage, sizeof(graph_node_t) * NWARPS_TOTAL * MAX_SLOT_NUM * UNROLL * GRAPH_DEGREE);
-  cout << "global memory usage: " << sizeof(graph_node_t) * NWARPS_TOTAL * MAX_SLOT_NUM * UNROLL * GRAPH_DEGREE / 1024.0 / 1024 / 1024 << " GB" << endl;
+  //cout << "global memory usage: " << sizeof(graph_node_t) * NWARPS_TOTAL * MAX_SLOT_NUM * UNROLL * GRAPH_DEGREE / 1024.0 / 1024 / 1024 << " GB" << endl;
 
   std::vector<CallStack> stk(NWARPS_TOTAL);
 
@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
 
   cudaEventRecord(start);
 
-  cout << "shared memory usage: " << sizeof(Graph) << " " << sizeof(Pattern) << " " << sizeof(JobQueue) << " " << sizeof(CallStack) * NWARPS_PER_BLOCK << " " << NWARPS_PER_BLOCK * 33 * sizeof(int) << " Bytes" << endl;
+  //cout << "shared memory usage: " << sizeof(Graph) << " " << sizeof(Pattern) << " " << sizeof(JobQueue) << " " << sizeof(CallStack) * NWARPS_PER_BLOCK << " " << NWARPS_PER_BLOCK * 33 * sizeof(int) << " Bytes" << endl;
 
   _parallel_match << <GRID_DIM, BLOCK_DIM >> > (gpu_graph, gpu_pattern, gpu_callstack, gpu_queue, gpu_res);
 
@@ -55,13 +55,13 @@ int main(int argc, char* argv[]) {
 
   float milliseconds = 0;
   cudaEventElapsedTime(&milliseconds, start, stop);
-  printf("matching time: %f ms\n", milliseconds);
+  //printf("matching time: %f ms\n", milliseconds);
 
   cudaMemcpy(res, gpu_res, sizeof(size_t) * NWARPS_TOTAL, cudaMemcpyDeviceToHost);
 
   size_t tot_count = 0;
   for (int i=0; i<NWARPS_TOTAL; i++) tot_count += res[i];
-
-  cout << "count: " << tot_count << endl;
+  printf("%f, %lu\n", milliseconds, tot_count);
+  //cout << "count: " << tot_count << endl;
   return 0;
 }

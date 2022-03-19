@@ -110,7 +110,7 @@ namespace libra {
 
       memcpy(g.colidx, colidx.data(), sizeof(graph_node_t) * colidx.size());
 
-      std::cout << "Graph read complete. Number of vertex: " << g.nnodes << std::endl;
+     // std::cout << "Graph read complete. Number of vertex: " << g.nnodes << std::endl;
     }
 
 

@@ -487,9 +487,9 @@ namespace libra {
       //printf("%d\t%ld\t%d\t%d\n", blockIdx.x, stop - start, stealed[local_wid], local_wid);
       //printf("%ld\n", stop - start);
     }
-    /*
-    if(threadIdx.x % WARP_SIZE == 0)
-      printf("%d\t%d\t%d\n", blockIdx.x, local_wid, mutex_this_block[local_wid]);
-    */
+    
+    //if(threadIdx.x % WARP_SIZE == 0)
+    //  printf("%d\t%d\t%d\n", blockIdx.x, local_wid, mutex_this_block[local_wid]);
+    
   }
 }

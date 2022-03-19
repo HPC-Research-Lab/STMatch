@@ -52,7 +52,7 @@ namespace libra {
       get_labels();
       convert2oned();
 
-      std::cout << "Pattern read complete. Pattern size: " << (int)pat.nnodes << std::endl;
+      //std::cout << "Pattern read complete. Pattern size: " << (int)pat.nnodes << std::endl;
     }
 
     Pattern* to_gpu() {
@@ -63,7 +63,7 @@ namespace libra {
     }
 
     void readfile(std::string& filename) {
-      std::cout << filename << std::endl;
+      //std::cout << filename << std::endl;
 
       std::ifstream fin(filename);
       std::string line;
@@ -360,7 +360,7 @@ namespace libra {
         }
         pat.rowptr[i + 1] = count;
       }
-      std::cout << "total number of slots: " << count << std::endl;
+      //std::cout << "total number of slots: " << count << std::endl;
       assert(count <= MAX_SLOT_NUM);
     }
   };
