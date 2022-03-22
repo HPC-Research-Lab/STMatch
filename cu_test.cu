@@ -37,13 +37,21 @@ int main(int argc, char* argv[]) {
   cudaMemset(gpu_res, 0, sizeof(size_t) * NWARPS_TOTAL);
   size_t* res = new size_t[NWARPS_TOTAL];
 
-  bool** idle_block;
-  cudaMalloc(&idle_block, sizeof(bool) * GRID_DIM*NWARPS_PER_BLOCK);
-  cudaMemset(idle_block, false, sizeof(bool) * GRID_DIM*NWARPS_PER_BLOCK);
+  unsigned int* idle_warps;
+  cudaMalloc(&idle_warps, sizeof(unsigned int) * GRID_DIM);
+  cudaMemset(idle_warps, 0, sizeof(unsigned int) * GRID_DIM);
 
   int* idle_warps_count;
   cudaMalloc(&idle_warps_count, sizeof(int));
   cudaMemset(idle_warps_count, 0, sizeof(int));
+
+  int* global_mutex;
+  cudaMalloc(&global_mutex, sizeof(int) * GRID_DIM);
+  cudaMemset(global_mutex, 0, sizeof(int) * GRID_DIM);
+
+  bool* stk_valid;
+  cudaMalloc(&stk_valid, sizeof(bool) * GRID_DIM);
+  cudaMemset(stk_valid, 0, sizeof(bool) * GRID_DIM);
 
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
@@ -53,7 +61,7 @@ int main(int argc, char* argv[]) {
 
   //cout << "shared memory usage: " << sizeof(Graph) << " " << sizeof(Pattern) << " " << sizeof(JobQueue) << " " << sizeof(CallStack) * NWARPS_PER_BLOCK << " " << NWARPS_PER_BLOCK * 33 * sizeof(int) << " Bytes" << endl;
 
-  _parallel_match << <GRID_DIM, BLOCK_DIM >> > (gpu_graph, gpu_pattern, gpu_callstack, gpu_queue, gpu_res, idle_block, idle_warps_count);
+  _parallel_match << <GRID_DIM, BLOCK_DIM >> > (gpu_graph, gpu_pattern, gpu_callstack, gpu_queue, gpu_res, idle_warps, idle_warps_count, global_mutex, stk_valid);
 
 
   cudaEventRecord(stop);

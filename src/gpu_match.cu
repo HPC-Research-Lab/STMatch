@@ -6,6 +6,15 @@
 #define UNROLL_SIZE(l) _unroll_size[l]
 
 namespace libra {
+  struct StealingArgs
+  {
+    unsigned int *idle_warps;
+    int *idle_warps_count;
+    int *global_mutex;
+    int *local_mutex;
+    bool *stk_valid;
+    CallStack *global_callstack;
+  };
 
   __device__ void lock(int* mutex) {
     while (atomicCAS((int*)mutex, 0, 1) != 0) {
@@ -15,45 +24,79 @@ namespace libra {
     atomicExch((int*)mutex, 0);
   }
 
-  __device__
-    bool trans_layer(int _stk_idx, CallStack& _target_stk, CallStack& _cur_stk, Pattern* _pat, int _k, int* _unroll_size) {
-    if (_target_stk.level <= _k) return false;
+ 
+  __device__ bool trans_layer(CallStack &_target_stk, CallStack &_cur_stk, Pattern *_pat, int _k, int *_unroll_size)
+  {
+    if (_target_stk.level <= _k)
+      return false;
 
     int num_left_task = _target_stk.slot_size[_pat->rowptr[_k]][_target_stk.uiter[_k]] -
-      (_target_stk.iter[_k] + _target_stk.uiter[_k + 1] + 1);
-    if (num_left_task <= 0) return false;
+                        (_target_stk.iter[_k] + _target_stk.uiter[_k + 1] + 1);
+    if (num_left_task <= 0)
+      return false;
 
     int stealed_start_idx_in_target = _target_stk.iter[_k] + _target_stk.uiter[_k + 1] + 1 + num_left_task / 2;
 
-    for (int i = 0; i <= _k; i++) {
+    // graph_node_t (*slot_storage)[UNROLL][GRAPH_DEGREE] = _cur_stk.slot_storage;
+    //_cur_stk = _target_stk;
+    //_cur_stk.slot_storage = slot_storage;
+    // printf("_cur:%d, _stk_idx:%d, _k:%d,  _target_stk.level:%d\n",
+    //         threadIdx.x / WARP_SIZE,
+    //         _stk_idx,
+    //         _k,
+    //         _target_stk.level);
+
+    // printf("slot_size:%d, uiter:%d,  iter:%d, uiter_k+1:%d, slot_size_k+1:%d, num_left_task:%d, stealed_start_idx_in_target:%d\n",
+    //       _target_stk.slot_size[_pat->rowptr[_k]][_target_stk.uiter[_k]],
+    //        _target_stk.uiter[_k],
+    //        _target_stk.iter[_k],
+    //        _target_stk.uiter[_k+1],
+    //        _target_stk.slot_size[_pat->rowptr[_k+1]][_target_stk.uiter[_k+1]],
+    //        num_left_task,
+    //        stealed_start_idx_in_target
+    //);
+    for (int i = 0; i <= _k; i++)
+    {
       memcpy((_cur_stk.slot_storage[_pat->rowptr[i]]), (_target_stk.slot_storage[_pat->rowptr[i]]), (_pat->rowptr[i + 1] - _pat->rowptr[i]) * GRAPH_DEGREE * UNROLL_SIZE(i) * sizeof(graph_node_t));
     }
 
-    //Copy 
-    for (int l = 0; l < _k; l++) {
+    // Copy
+
+    for (int l = 0; l < _k; l++)
+    {
       _cur_stk.iter[l] = _target_stk.iter[l];
       _cur_stk.uiter[l] = _target_stk.uiter[l];
-      for (int s = _pat->rowptr[l]; s < _pat->rowptr[l + 1]; s++) {
-        for (int u = 0; u < UNROLL_SIZE(l); u++) {
+      for (int s = _pat->rowptr[l]; s < _pat->rowptr[l + 1]; s++)
+      {
+        for (int u = 0; u < UNROLL_SIZE(l); u++)
+        {
           _cur_stk.slot_size[s][u] = _target_stk.slot_size[s][u];
         }
       }
     }
 
-    //copy
-    for (int i = stealed_start_idx_in_target - _target_stk.iter[_k]; i < UNROLL_SIZE(_k + 1); i++) {
+    // copy
+    for (int i = stealed_start_idx_in_target - _target_stk.iter[_k]; i < UNROLL_SIZE(_k + 1); i++)
+    {
       _target_stk.slot_size[_pat->rowptr[_k + 1]][i] = 0;
     }
 
-    for (int s = _pat->rowptr[_k]; s < _pat->rowptr[_k + 1]; s++) {
-      if (s == _pat->rowptr[_k]) {
-        for (int u = 0; u < UNROLL_SIZE(_k); u++) {
-          if (u == _target_stk.uiter[_k])  _cur_stk.slot_size[s][u] = _target_stk.slot_size[s][u];
-          else                          _cur_stk.slot_size[s][u] = 0;
+    for (int s = _pat->rowptr[_k]; s < _pat->rowptr[_k + 1]; s++)
+    {
+      if (s == _pat->rowptr[_k])
+      {
+        for (int u = 0; u < UNROLL_SIZE(_k); u++)
+        {
+          if (u == _target_stk.uiter[_k])
+            _cur_stk.slot_size[s][u] = _target_stk.slot_size[s][u];
+          else
+            _cur_stk.slot_size[s][u] = 0;
         }
       }
-      else {
-        for (int u = 0; u < UNROLL_SIZE(_k); u++) {
+      else
+      {
+        for (int u = 0; u < UNROLL_SIZE(_k); u++)
+        {
           _cur_stk.slot_size[s][u] = _target_stk.slot_size[s][u];
         }
       }
@@ -62,78 +105,90 @@ namespace libra {
     _cur_stk.uiter[_k] = _target_stk.uiter[_k];
     _cur_stk.iter[_k] = stealed_start_idx_in_target;
     _target_stk.slot_size[_pat->rowptr[_k]][_target_stk.uiter[_k]] = stealed_start_idx_in_target;
-    //copy
-    for (int l = _k + 1; l < _pat->nnodes - 1; l++) {
+    // copy
+    for (int l = _k + 1; l < _pat->nnodes - 1; l++)
+    {
       _cur_stk.iter[l] = 0;
       _cur_stk.uiter[l] = 0;
-      for (int s = _pat->rowptr[l]; s < _pat->rowptr[l + 1]; s++) {
-        for (int u = 0; u < UNROLL_SIZE(l); u++) {
+      for (int s = _pat->rowptr[l]; s < _pat->rowptr[l + 1]; s++)
+      {
+        for (int u = 0; u < UNROLL_SIZE(l); u++)
+        {
           _cur_stk.slot_size[s][u] = 0;
         }
       }
     }
     _cur_stk.iter[_pat->nnodes - 1] = 0;
     _cur_stk.uiter[_pat->nnodes - 1] = 0;
-    for (int u = 0; u < UNROLL_SIZE(_pat->nnodes - 1); u++) {
+    for (int u = 0; u < UNROLL_SIZE(_pat->nnodes - 1); u++)
+    {
       _cur_stk.slot_size[_pat->rowptr[_pat->nnodes - 1]][u] = 0;
     }
     _cur_stk.level = _k + 1;
     _cur_stk.start_level = _target_stk.start_level;
-    //return false;
+    // return false;
     return true;
   }
 
-  __device__
-    bool trans_skt(CallStack* _all_stk, CallStack* _cur_stk, Pattern* pat, int* _mutex, int* _unroll_size) {
-    //int local_mutex = 0;
+  __device__ bool trans_skt(CallStack *_all_stk, CallStack *_cur_stk, Pattern *pat, int *_unroll_size, StealingArgs *_stealing_args)
+  {
+    // int local_mutex = 0;
     int max_left_task = 0;
     int stk_idx = -1;
     int at_level = -1;
-    //int task_level = -1;
+    // int task_level = -1;
 
-    //for(int level = 0; level< pat->nnodes - 2; level++){
-    for (int level = 0; level < 1; level++) {
-      //if(level==2) continue;
-      for (int i = 0; i < NWARPS_PER_BLOCK; i++) {
+    // for(int level = 0; level< pat->nnodes - 2; level++){
+    for (int level = 0; level < 1; level++)
+    {
+      // if(level==2) continue;
+      for (int i = 0; i < NWARPS_PER_BLOCK; i++)
+      {
 
-        if (i == threadIdx.x / WARP_SIZE) continue;
-        lock(&_mutex[i]);
-        //printf("slot_size 0:%d\n", _all_stk[i].slot_size[0][1]);
-       // continue;
+        if (i == threadIdx.x / WARP_SIZE)
+          continue;
+        lock(&(_stealing_args->local_mutex[i]));
+        // printf("slot_size 0:%d\n", _all_stk[i].slot_size[0][1]);
+        // continue;
 
-        if (_all_stk[i].level > level) {
+        if (_all_stk[i].level > level)
+        {
           int left_task = _all_stk[i].slot_size[pat->rowptr[level]][_all_stk[i].uiter[level]] -
-            (_all_stk[i].iter[level] + _all_stk[i].uiter[level + 1] + 1);
-          if (left_task > max_left_task) {
+                          (_all_stk[i].iter[level] + _all_stk[i].uiter[level + 1] + 1);
+          if (left_task > max_left_task)
+          {
             max_left_task = left_task;
             stk_idx = i;
             at_level = level;
           }
         }
-        else {
-          unlock(&_mutex[i]);
+        else
+        {
+          unlock(&(_stealing_args->local_mutex[i]));
           continue;
         }
-        unlock(&_mutex[i]);
+        unlock(&(_stealing_args->local_mutex[i]));
       }
-      if (stk_idx != -1) break;
+      if (stk_idx != -1)
+        break;
     }
 
+    if (stk_idx != -1)
+    {
+      // printf("stk_idx:%d\n", stk_idx);
+      int res = -1;
+      lock(&(_stealing_args->local_mutex[threadIdx.x / WARP_SIZE]));
+      lock(&(_stealing_args->local_mutex[stk_idx]));
+      //__threadfence_block();
+      res = trans_layer(_all_stk[stk_idx], *_cur_stk, pat, at_level, _unroll_size);
 
-    if (stk_idx != -1) {
-
-      bool res;
-      lock(&_mutex[threadIdx.x / WARP_SIZE]);
-      lock(&_mutex[stk_idx]);
-
-      res = trans_layer(stk_idx, _all_stk[stk_idx], *_cur_stk, pat, at_level, _unroll_size);
-
-      unlock(&_mutex[threadIdx.x / WARP_SIZE]);
-      unlock(&_mutex[stk_idx]);
+      unlock(&(_stealing_args->local_mutex[threadIdx.x / WARP_SIZE]));
+      unlock(&(_stealing_args->local_mutex[stk_idx]));
       return res;
     }
     return false;
   }
+
 
   inline __device__ graph_node_t path(CallStack* stk, Pattern* pat, int level, int k) {
     if (level > 0)
@@ -492,102 +547,138 @@ namespace libra {
     stk->uiter[level] = 0;
   }
 
-  __device__ void match(Graph* g, Pattern* pat,
-    CallStack* stk, JobQueue* q, size_t* count,
-    int* mutex, int* _unroll_size,
-    bool** idle_warps, int* idle_warps_count) {
-    //if(threadIdx.x==0){
-    //  printf("%d\n", UNROLL_SIZE(1));
-    //}
-    //pattern_node_t level = 0;
-    //printf("stk->start_level:%d\n", stk->start_level);
-    pattern_node_t& level = stk->level;
+  __device__ void match(Graph *g, Pattern *pat,
+                        CallStack *stk, JobQueue *q, size_t *count, int *_unroll_size, StealingArgs *_stealing_args)
+  {
+    // if(threadIdx.x==0){
+    //   printf("%d\n", UNROLL_SIZE(1));
+    // }
+    // pattern_node_t level = 0;
+    // printf("stk->start_level:%d\n", stk->start_level);
+    pattern_node_t &level = stk->level;
 
     __shared__ int target_block_idx[NWARPS_PER_BLOCK];
 
-    while (true) {
-      if (threadIdx.x % WARP_SIZE == 0) {
-        lock(mutex);
+    while (true)
+    {
+      if (threadIdx.x % WARP_SIZE == 0)
+      {
+        lock(&(_stealing_args->local_mutex[threadIdx.x / WARP_SIZE]));
       }
       __syncwarp();
 
-      if (level < pat->nnodes - stk->start_level) {
+      if (level < pat->nnodes - stk->start_level)
+      {
 
-        /*
-        if(level==2){
+        if (level == 1)
+        {
+          if (threadIdx.x % WARP_SIZE == 0)
+          {
+            int left_task = stk->slot_size[pat->rowptr[level - 1]][stk->uiter[level - 1]] - stk->iter[level - 1] - stk->uiter[level] - 1;
+            if (left_task > 0)
+            {
+              for (int b = blockIdx.x+1; b < GRID_DIM; b++)
+              {
+                  if (b == blockIdx.x || _stealing_args->global_mutex[b] == 1) continue;
 
-            if(threadIdx.x % WARP_SIZE == 0){
-                for(int i=0; i<GRID_DIM; i++){
-                    if(idle_warps[i][threadIdx.x / WARP_SIZE]==true){
-                        target_block_idx[threadIdx.x / WARP_SIZE] = i;
-                        break;
-                    }
-                }
-
-                if(target_block_idx[threadIdx.x / WARP_SIZE]!=0){
-                    //trans stk;
-
-                    idle_warps[target_block_idx[threadIdx.x / WARP_SIZE]][threadIdx.x / WARP_SIZE]==false;
-                    target_block_idx[threadIdx.x / WARP_SIZE]=0;
-                }
+                  lock(&(_stealing_args->global_mutex[b]));
+                  if (_stealing_args->idle_warps[b] ==0xFFFFFFFF && !_stealing_args->stk_valid[b] )
+                  {
+                      printf("Find Idle Block:%d\n", b);
+                      
+                      trans_layer(*stk, _stealing_args->global_callstack[b * NWARPS_PER_BLOCK], pat, 0, _unroll_size);
+                      _stealing_args->stk_valid[b] = true;
+                      
+                      atomicSub(_stealing_args->idle_warps_count, NWARPS_PER_BLOCK);
+                      _stealing_args->idle_warps[b] = 0;
+                      
+                      unlock(&(_stealing_args->global_mutex[b]));
+                      __threadfence();
+                      break;
+                  }
+                  unlock(&(_stealing_args->global_mutex[b]));
+                  __threadfence();
+              }
             }
-             __syncwarp();
+          }
+          __syncwarp();
         }
-        */
-        if (stk->uiter[level] == 0 && stk->slot_size[pat->rowptr[level]][0] == 0) {
+
+        if (stk->uiter[level] == 0 && stk->slot_size[pat->rowptr[level]][0] == 0)
+        {
 
           extend(g, pat, stk, q, level, _unroll_size);
-          if (level == 0 && stk->slot_size[0][0] == 0) {
-            if (threadIdx.x % WARP_SIZE == 0) unlock(mutex);
+          if (level == 0 && stk->slot_size[0][0] == 0)
+          {
+            if (threadIdx.x % WARP_SIZE == 0)
+              unlock(&(_stealing_args->local_mutex[threadIdx.x / WARP_SIZE]));
             __syncwarp();
             break;
           }
         }
-        if (stk->uiter[level] < UNROLL_SIZE(level)) {
-          if (stk->iter[level] < stk->slot_size[pat->rowptr[level]][stk->uiter[level]]) {
-            if (threadIdx.x % WARP_SIZE == 0) level++;
+        if (stk->uiter[level] < UNROLL_SIZE(level))
+        {
+          if (stk->iter[level] < stk->slot_size[pat->rowptr[level]][stk->uiter[level]])
+          {
+            if (threadIdx.x % WARP_SIZE == 0)
+              level++;
             __syncwarp();
           }
-          else {
+          else
+          {
             stk->slot_size[pat->rowptr[level]][stk->uiter[level]] = 0;
             stk->iter[level] = 0;
-            if (threadIdx.x % WARP_SIZE == 0) stk->uiter[level]++;
+            if (threadIdx.x % WARP_SIZE == 0)
+              stk->uiter[level]++;
             __syncwarp();
           }
         }
-        else {
+        else
+        {
           stk->uiter[level] = 0;
-          if (level > 0) {
-            if (threadIdx.x % WARP_SIZE == 0) level--;
-            if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level + 1);
+          if (level > 0)
+          {
+            if (threadIdx.x % WARP_SIZE == 0)
+              level--;
+            if (threadIdx.x % WARP_SIZE == 0)
+              stk->iter[level] += UNROLL_SIZE(level + 1);
             __syncwarp();
           }
         }
       }
-      else if (level == pat->nnodes - stk->start_level) {
+      else if (level == pat->nnodes - stk->start_level)
+      {
 
         // TODO: we can save the storage of sets for the last level
         extend(g, pat, stk, q, level, _unroll_size);
-        for (int j = 0; j < UNROLL_SIZE(level); j++) {
-          if (threadIdx.x % WARP_SIZE == 0) {
+        for (int j = 0; j < UNROLL_SIZE(level); j++)
+        {
+          if (threadIdx.x % WARP_SIZE == 0)
+          {
             *count += stk->slot_size[pat->rowptr[level]][j];
           }
           __syncwarp();
           stk->slot_size[pat->rowptr[level]][j] = 0;
         }
-        if (threadIdx.x % WARP_SIZE == 0) level--;
-        if (threadIdx.x % WARP_SIZE == 0) stk->iter[level] += UNROLL_SIZE(level + 1);
+        if (threadIdx.x % WARP_SIZE == 0)
+          level--;
+        if (threadIdx.x % WARP_SIZE == 0)
+          stk->iter[level] += UNROLL_SIZE(level + 1);
         __syncwarp();
       }
       //__syncwarp();
-      if (threadIdx.x % WARP_SIZE == 0) unlock(mutex);
+      if (threadIdx.x % WARP_SIZE == 0)
+        unlock(&(_stealing_args->local_mutex[threadIdx.x / WARP_SIZE]));
       __syncwarp();
     }
   }
 
-  __global__ void _parallel_match(Graph* dev_graph, Pattern* dev_pattern,
-    CallStack* dev_callstack, JobQueue* job_queue, size_t* res,
-    bool** idle_warps, int* idle_warps_count) {
+
+ 
+  __global__ void _parallel_match(Graph *dev_graph, Pattern *dev_pattern,
+                                  CallStack *dev_callstack, JobQueue *job_queue, size_t *res,
+                                  unsigned int *idle_warps, int *idle_warps_count, int *global_mutex, bool *stk_valid)
+  {
     __shared__ Graph graph;
     __shared__ Pattern pat;
     __shared__ CallStack stk[NWARPS_PER_BLOCK];
@@ -596,11 +687,31 @@ namespace libra {
     __shared__ int mutex_this_block[NWARPS_PER_BLOCK];
     __shared__ int unroll_size[PAT_SIZE];
 
+    __shared__ StealingArgs stealing_args;
+    stealing_args.idle_warps = idle_warps;
+    stealing_args.idle_warps_count = idle_warps_count;
+    stealing_args.global_mutex = global_mutex;
+    stealing_args.local_mutex = mutex_this_block;
+    stealing_args.stk_valid = stk_valid;
+    stealing_args.global_callstack = dev_callstack;
+    /*
+      if(threadIdx.x % WARP_SIZE == 0){
+        unroll_size[threadIdx.x % WARP_SIZE] = 1;
+      }
+      else if(threadIdx.x % WARP_SIZE == 1){
+        unroll_size[threadIdx.x % WARP_SIZE] = 2;
+      }
+      else if(threadIdx.x % WARP_SIZE <PAT_SIZE){
+         unroll_size[threadIdx.x % WARP_SIZE] = 4;
+      }
+      */
+
     int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
     int global_wid = global_tid / WARP_SIZE;
     int local_wid = threadIdx.x / WARP_SIZE;
 
-    if (threadIdx.x == 0) {
+    if (threadIdx.x == 0)
+    {
       unroll_size[0] = 1;
       unroll_size[1] = 4;
       unroll_size[2] = 4;
@@ -612,60 +723,101 @@ namespace libra {
     }
     __syncthreads();
 
-    if (threadIdx.x % WARP_SIZE == 0) {
+    if (threadIdx.x % WARP_SIZE == 0)
+    {
 
       stk[local_wid] = dev_callstack[global_wid];
     }
     __syncwarp();
 
-
     auto start = clock64();
 
-    while (true) {
-      while (true) {
-        __syncwarp();
-        match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid], &mutex_this_block[local_wid], unroll_size, idle_warps, idle_warps_count);
-        __syncwarp();
-        //break;
-        //trans_success[local_wid]=false;
-        if (threadIdx.x % WARP_SIZE == 0) {
-          stealed[local_wid] = trans_skt(stk, &stk[local_wid], &pat, mutex_this_block, unroll_size);
+    while (true)
+    {
+      match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid], unroll_size, &stealing_args);
+      __syncwarp();
+      // break;
+      // trans_success[local_wid]=false;
+      if (threadIdx.x % WARP_SIZE == 0)
+      {
+        stealed[local_wid] = trans_skt(stk, &stk[local_wid], &pat, unroll_size, &stealing_args);
+      }
+      __syncwarp();
+      if (!stealed[local_wid])
+      {
+         __syncthreads();
+        if (threadIdx.x % WARP_SIZE == 0)
+        {
+          atomicAdd(stealing_args.idle_warps_count, 1);
+          lock(&(stealing_args.global_mutex[blockIdx.x]));
+          atomicOr(&(stealing_args.idle_warps[blockIdx.x]), (1 << local_wid));
+          unlock(&(stealing_args.global_mutex[blockIdx.x]));
+        }
+        __syncthreads();
+        if (threadIdx.x % WARP_SIZE == 0){
+          // while(*(stealing_args.idle_warps_count) < NWARPS_TOTAL){
+          //  __threadfence();
+          //}
+          while( (*stealing_args.idle_warps_count < NWARPS_TOTAL) && (stealing_args.idle_warps[blockIdx.x] & (1 << local_wid))){
+              __threadfence();
+          }
+        }
+        __syncthreads();
+
+       // if (threadIdx.x % WARP_SIZE == 0) printf("Warp %d, idle_warps_count:%d, NWARPS_PER_BLOCK:%d, idle_warps:%d\n", 
+       //                         local_wid, *stealing_args.idle_warps_count, NWARPS_TOTAL, stealing_args.idle_warps[blockIdx.x]);
+        __syncthreads();
+
+        if (threadIdx.x % WARP_SIZE == 0){
+          if (*stealing_args.idle_warps_count < NWARPS_TOTAL)
+          {
+            lock(&(stealing_args.global_mutex[blockIdx.x]));
+            //atomicAdd(stealing_args.idle_warps_count, 1);
+
+            
+            if (stealing_args.stk_valid[blockIdx.x] == true)
+            {
+              __threadfence();
+              stealing_args.stk_valid[blockIdx.x] = false;
+              graph_node_t(*slot_storage_tmp)[UNROLL][GRAPH_DEGREE] = stk[local_wid].slot_storage;
+              memcpy(stk[local_wid].slot_storage, stealing_args.global_callstack[blockIdx.x * NWARPS_PER_BLOCK].slot_storage, sizeof(graph_node_t) * MAX_SLOT_NUM * UNROLL * GRAPH_DEGREE);
+               __threadfence();
+              stk[local_wid] = (stealing_args.global_callstack[blockIdx.x * NWARPS_PER_BLOCK]);
+              stk[local_wid].slot_storage = slot_storage_tmp;
+               __threadfence();
+            }
+            
+            stealed[local_wid] = true;
+            unlock(&(stealing_args.global_mutex[blockIdx.x]));
+             __threadfence();
+          }
+          else
+          {
+            stealed[local_wid] = false;
+             __threadfence();
+          }
         }
         __syncwarp();
-        //break;
-        if (stealed[local_wid]) {
-          //printf("stealed_idx:%d\n", stealed_idx[local_wid]);
-          //break;
-          continue;
-        }
-        else {
+        __syncthreads();
+        if (!stealed[local_wid])
+        {
           break;
         }
+        //__syncthreads();
       }
-      /*
-       __syncthreads();
-      idle_warps[blockIdx.x][local_wid] = true;
-      (*idle_warps_count)++;
-      while( idle_warps[blockIdx.x][local_wid] == true){
-          if(*idle_warps_count==GRID_DIM*NWARPS_PER_BLOCK){
-            break;
-          }
-      }
-      */
-      break;
     }
+    __syncthreads();
 
     auto stop = clock64();
 
-
-    if (threadIdx.x % WARP_SIZE == 0) {
+    if (threadIdx.x % WARP_SIZE == 0)
+    {
       res[global_wid] = count[local_wid];
-      //printf("%d\t%ld\t%d\t%d\n", blockIdx.x, stop - start, stealed[local_wid], local_wid);
-      //printf("%ld\n", stop - start);
+      // printf("%d\t%ld\t%d\t%d\n", blockIdx.x, stop - start, stealed[local_wid], local_wid);
+      // printf("%ld\n", stop - start);
     }
 
-    //if(threadIdx.x % WARP_SIZE == 0)
-    //  printf("%d\t%d\t%d\n", blockIdx.x, local_wid, mutex_this_block[local_wid]);
-
+    // if(threadIdx.x % WARP_SIZE == 0)
+    //   printf("%d\t%d\t%d\n", blockIdx.x, local_wid, mutex_this_block[local_wid]);
   }
 }
