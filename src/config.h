@@ -27,4 +27,7 @@ namespace libra {
 
   // this is the maximum unroll size
   inline constexpr int UNROLL = 4;
+
+  inline constexpr int DETECT_LEVEL = 1;
+  inline constexpr int STOP_LEVEL = 2;
 }
