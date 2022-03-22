@@ -764,16 +764,10 @@ namespace libra {
         }
         __syncthreads();
 
-       // if (threadIdx.x % WARP_SIZE == 0) printf("Warp %d, idle_warps_count:%d, NWARPS_PER_BLOCK:%d, idle_warps:%d\n", 
-       //                         local_wid, *stealing_args.idle_warps_count, NWARPS_TOTAL, stealing_args.idle_warps[blockIdx.x]);
-        __syncthreads();
-
         if (threadIdx.x % WARP_SIZE == 0){
           if (*stealing_args.idle_warps_count < NWARPS_TOTAL)
           {
             lock(&(stealing_args.global_mutex[blockIdx.x]));
-            //atomicAdd(stealing_args.idle_warps_count, 1);
-
             
             if (stealing_args.stk_valid[blockIdx.x] == true)
             {
@@ -798,7 +792,6 @@ namespace libra {
           }
         }
         __syncwarp();
-        __syncthreads();
         if (!stealed[local_wid])
         {
           break;
