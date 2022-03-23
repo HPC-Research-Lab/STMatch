@@ -39,9 +39,9 @@ int main(int argc, char* argv[]) {
   cudaMemset(gpu_res, 0, sizeof(size_t) * NWARPS_TOTAL);
   size_t* res = new size_t[NWARPS_TOTAL];
 
-  unsigned int* idle_warps;
-  cudaMalloc(&idle_warps, sizeof(unsigned int) * GRID_DIM);
-  cudaMemset(idle_warps, 0, sizeof(unsigned int) * GRID_DIM);
+  int* idle_warps;
+  cudaMalloc(&idle_warps, sizeof(int) * GRID_DIM);
+  cudaMemset(idle_warps, 0, sizeof(int) * GRID_DIM);
 
   int* idle_warps_count;
   cudaMalloc(&idle_warps_count, sizeof(int));
