@@ -36,10 +36,67 @@ namespace libra {
 
     int stealed_start_idx_in_target = _target_stk.iter[_k] + _target_stk.uiter[_k + 1] + 1 + num_left_task / ratio;
 
-    for (int i = 0; i <= _k; i++)
+    for (int i = 0; i < _k - 1; i++)
     {
-      memcpy((_cur_stk.slot_storage[_pat->rowptr[i]]), (_target_stk.slot_storage[_pat->rowptr[i]]), (_pat->rowptr[i + 1] - _pat->rowptr[i]) * GRAPH_DEGREE * UNROLL_SIZE(i) * sizeof(graph_node_t));
+      // TODO: 
+      int ui = _target_stk.uiter[i];
+      _cur_stk.slot_storage[_pat->rowptr[i]][ui][_target_stk.iter[i]] = _target_stk.slot_storage[_pat->rowptr[i]][ui][_target_stk.iter[i]];
     }
+
+    if (_k == 0) {
+      for (int r = _pat->rowptr[0]; r < _pat->rowptr[1]; r++) {
+        for (int u = 0; u < UNROLL_SIZE(0); u++) {
+          //printf("%d\n", _target_stk.slot_size[r][u]);
+          for (int t = 0; t < _target_stk.slot_size[r][u]; t++) {
+            _cur_stk.slot_storage[r][u][t] = _target_stk.slot_storage[r][u][t];
+            _cur_stk.slot_storage[r][u][t + JOB_CHUNK_SIZE] = _target_stk.slot_storage[r][u][t + JOB_CHUNK_SIZE];
+          }
+        }
+      }
+    }
+    else if (_k == 1) {
+
+      for (int r = _pat->rowptr[0]; r < _pat->rowptr[1]; r++) {
+        for (int u = 0; u < UNROLL_SIZE(0); u++) {
+          //printf("%d\n", _target_stk.slot_size[r][u]);
+          for (int t = 0; t < _target_stk.slot_size[r][u]; t++) {
+            _cur_stk.slot_storage[r][u][t] = _target_stk.slot_storage[r][u][t];
+            _cur_stk.slot_storage[r][u][t + JOB_CHUNK_SIZE] = _target_stk.slot_storage[r][u][t + JOB_CHUNK_SIZE];
+          }
+        }
+      }
+
+      for (int r = _pat->rowptr[_k]; r < _pat->rowptr[_k + 1]; r++) {
+        for (int u = 0; u < UNROLL_SIZE(_k); u++) {
+          //printf("%d\n", _target_stk.slot_size[r][u]);
+          for (int t = 0; t < _target_stk.slot_size[r][u]; t++) {
+            _cur_stk.slot_storage[r][u][t] = _target_stk.slot_storage[r][u][t];
+          }
+        }
+      }
+
+    }
+    else {
+
+      for (int r = _pat->rowptr[_k - 1]; r < _pat->rowptr[_k]; r++) {
+        for (int u = 0; u < UNROLL_SIZE(_k - 1); u++) {
+          //printf("%d\n", _target_stk.slot_size[r][u]);
+          for (int t = 0; t < _target_stk.slot_size[r][u]; t++) {
+            _cur_stk.slot_storage[r][u][t] = _target_stk.slot_storage[r][u][t];
+          }
+        }
+      }
+
+      for (int r = _pat->rowptr[_k]; r < _pat->rowptr[_k + 1]; r++) {
+        for (int u = 0; u < UNROLL_SIZE(_k); u++) {
+          //printf("%d\n", _target_stk.slot_size[r][u]);
+          for (int t = 0; t < _target_stk.slot_size[r][u]; t++) {
+            _cur_stk.slot_storage[r][u][t] = _target_stk.slot_storage[r][u][t];
+          }
+        }
+      }
+    }
+    //memcpy((_cur_stk.slot_storage[_pat->rowptr[_k]]), (_target_stk.slot_storage[_pat->rowptr[_k]]), (_pat->rowptr[_k + 1] - _pat->rowptr[_k]) * GRAPH_DEGREE * UNROLL_SIZE(_k) * sizeof(graph_node_t));
 
     // Copy
 
@@ -47,11 +104,20 @@ namespace libra {
     {
       _cur_stk.iter[l] = _target_stk.iter[l];
       _cur_stk.uiter[l] = _target_stk.uiter[l];
-      for (int s = _pat->rowptr[l]; s < _pat->rowptr[l + 1]; s++)
-      {
-        for (int u = 0; u < UNROLL_SIZE(l); u++)
-        {
-          _cur_stk.slot_size[s][u] = _target_stk.slot_size[s][u];
+      for (int s = _pat->rowptr[l]; s < _pat->rowptr[l + 1]; s++) {
+        if (s > _pat->rowptr[l]) {
+          for (int u = 0; u < UNROLL; u++) {
+            _cur_stk.slot_size[s][u] = _target_stk.slot_size[s][u];
+          }
+        }
+        else {
+          for (int u = 0; u < UNROLL_SIZE(l); u++)
+          {
+            if (u == _cur_stk.uiter[l])
+              _cur_stk.slot_size[_pat->rowptr[l]][u] = _target_stk.iter[l] + 1;//_target_stk.slot_size[s][u];
+            else
+              _cur_stk.slot_size[_pat->rowptr[l]][u] = 0;
+          }
         }
       }
     }
@@ -562,7 +628,7 @@ namespace libra {
                 for (int b = 0; b < GRID_DIM; b++)
                 {
                   if (b == blockIdx.x) continue;
-                  if (atomicCAS(&(_stealing_args->global_mutex[b]), 0, 1) == 0) {
+                  if (_stealing_args->idle_warps[b] == 0xFFFFFFFF && atomicCAS(&(_stealing_args->global_mutex[b]), 0, 1) == 0) {
                     if (_stealing_args->idle_warps[b] == 0xFFFFFFFF)
                     {
                       __threadfence();
