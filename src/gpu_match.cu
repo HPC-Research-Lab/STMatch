@@ -14,14 +14,13 @@ namespace libra {
     CallStack* global_callstack;
   };
 
-  __device__ void lock(int* mutex) {
+  __forceinline__ __device__ void lock(int* mutex) {
     while (atomicCAS((int*)mutex, 0, 1) != 0) {
     }
   }
-  __device__ void unlock(int* mutex) {
+  __forceinline__ __device__ void unlock(int* mutex) {
     atomicExch((int*)mutex, 0);
   }
-
 
   __device__ bool trans_layer(CallStack& _target_stk, CallStack& _cur_stk, Pattern* _pat, int _k, int* _unroll_size, int ratio = 2) {
     if (_target_stk.level <= _k)
@@ -61,7 +60,7 @@ namespace libra {
         else {
           for (int u = 0; u < UNROLL_SIZE(l); u++) {
             if (u == _cur_stk.uiter[l])
-              _cur_stk.slot_size[_pat->rowptr[l]][u] = _target_stk.iter[l] + 1;//_target_stk.slot_size[s][u];
+              _cur_stk.slot_size[_pat->rowptr[l]][u] = _target_stk.iter[l] + 1;
             else
               _cur_stk.slot_size[_pat->rowptr[l]][u] = 0;
           }
@@ -530,7 +529,7 @@ namespace libra {
               if (atomicAdd(&_stealing_args->idle_warps[b], 0) == 0xFFFFFFFF) {
                 __threadfence();
 
-                trans_layer(*stk, _stealing_args->global_callstack[b * NWARPS_PER_BLOCK], pat, at_level, _unroll_size, 100);
+                trans_layer(*stk, _stealing_args->global_callstack[b * NWARPS_PER_BLOCK], pat, at_level, _unroll_size, INT_MAX);
                 __threadfence();
 
                 atomicSub(_stealing_args->idle_warps_count, NWARPS_PER_BLOCK);
