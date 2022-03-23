@@ -512,7 +512,7 @@ namespace libra {
   }
 
   __forceinline__ __device__ void respond_across_block(int level, CallStack* stk, Pattern* pat, int* _unroll_size, StealingArgs* _stealing_args) {
-    if (level <= DETECT_LEVEL) {
+    if (level > 0 && level <= DETECT_LEVEL) {
       if (threadIdx.x % WARP_SIZE == 0) {
         int at_level = -1;
         int left_task = 0;
