@@ -159,7 +159,7 @@ namespace libra {
   }
 
 
-  inline __device__ graph_node_t path(CallStack* stk, Pattern* pat, int level, int k) {
+  __forceinline__ __device__ graph_node_t path(CallStack* stk, Pattern* pat, int level, int k) {
     if (level > 0)
       return stk->slot_storage[pat->rowptr[level]][stk->uiter[level]][stk->iter[level] + k];
     else {
@@ -177,7 +177,7 @@ namespace libra {
   } Arg_t;
 
   template<typename DATA_T, typename SIZE_T>
-  inline __device__
+  __forceinline__ __device__
     bool bsearch_exist(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
     int mid;
     int low = 0;
@@ -198,7 +198,7 @@ namespace libra {
   }
 
   template<typename DATA_T, typename SIZE_T>
-  inline __device__
+  __forceinline__ __device__
     SIZE_T upper_bound(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
     int i, step;
     int low = 0;
@@ -216,7 +216,7 @@ namespace libra {
     return low;
   }
 
-  inline __device__
+  __forceinline__ __device__
     void prefix_sum(int* _input, int input_size) {
 
     int thid = threadIdx.x % WARP_SIZE;
@@ -333,7 +333,7 @@ namespace libra {
     __syncwarp();
   }
 
-  inline __device__ void get_job(JobQueue* q, graph_node_t& cur_pos, graph_node_t& njobs) {
+  __forceinline__ __device__ void get_job(JobQueue* q, graph_node_t& cur_pos, graph_node_t& njobs) {
     lock(&(q->mutex));
     cur_pos = q->cur;
     q->cur += JOB_CHUNK_SIZE;
