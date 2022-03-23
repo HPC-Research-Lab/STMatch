@@ -650,11 +650,11 @@ namespace libra {
 
     if (threadIdx.x == 0) {
       unroll_size[0] = 1;
-      unroll_size[1] = 1;
-      unroll_size[2] = 1;
-      unroll_size[3] = 1;
-      unroll_size[4] = 1;
-      unroll_size[5] = 1;
+      unroll_size[1] = UNROLL;
+      unroll_size[2] = UNROLL;
+      unroll_size[3] = UNROLL;
+      unroll_size[4] = UNROLL;
+      unroll_size[5] = UNROLL;
       graph = *dev_graph;
       pat = *dev_pattern;
     }

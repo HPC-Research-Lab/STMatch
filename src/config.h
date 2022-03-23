@@ -25,7 +25,7 @@ namespace libra {
   //static_assert(2 * JOB_CHUNK_SIZE <= GRAPH_DEGREE); 
 
   // this is the maximum unroll size
-  inline constexpr int UNROLL = 4;
+  inline constexpr int UNROLL = 8;
 
   inline constexpr bool STEAL_IN_BLOCK = true;
   inline constexpr bool STEAL_ACROSS_BLOCK = true;
