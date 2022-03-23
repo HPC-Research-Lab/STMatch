@@ -36,69 +36,23 @@ namespace libra {
 
     int stealed_start_idx_in_target = _target_stk.iter[_k] + _target_stk.uiter[_k + 1] + 1 + num_left_task / ratio;
 
+        
     for (int i = 0; i < _k - 1; i++)
     {
-      // TODO: 
       int ui = _target_stk.uiter[i];
       _cur_stk.slot_storage[_pat->rowptr[i]][ui][_target_stk.iter[i]] = _target_stk.slot_storage[_pat->rowptr[i]][ui][_target_stk.iter[i]];
     }
 
-    if (_k == 0) {
-      for (int r = _pat->rowptr[0]; r < _pat->rowptr[1]; r++) {
-        for (int u = 0; u < UNROLL_SIZE(0); u++) {
-          //printf("%d\n", _target_stk.slot_size[r][u]);
-          for (int t = 0; t < _target_stk.slot_size[r][u]; t++) {
-            _cur_stk.slot_storage[r][u][t] = _target_stk.slot_storage[r][u][t];
-            _cur_stk.slot_storage[r][u][t + JOB_CHUNK_SIZE] = _target_stk.slot_storage[r][u][t + JOB_CHUNK_SIZE];
-          }
-        }
-      }
-    }
-    else if (_k == 1) {
-
-      for (int r = _pat->rowptr[0]; r < _pat->rowptr[1]; r++) {
-        for (int u = 0; u < UNROLL_SIZE(0); u++) {
-          //printf("%d\n", _target_stk.slot_size[r][u]);
-          for (int t = 0; t < _target_stk.slot_size[r][u]; t++) {
-            _cur_stk.slot_storage[r][u][t] = _target_stk.slot_storage[r][u][t];
-            _cur_stk.slot_storage[r][u][t + JOB_CHUNK_SIZE] = _target_stk.slot_storage[r][u][t + JOB_CHUNK_SIZE];
-          }
-        }
-      }
-
-      for (int r = _pat->rowptr[_k]; r < _pat->rowptr[_k + 1]; r++) {
-        for (int u = 0; u < UNROLL_SIZE(_k); u++) {
-          //printf("%d\n", _target_stk.slot_size[r][u]);
-          for (int t = 0; t < _target_stk.slot_size[r][u]; t++) {
-            _cur_stk.slot_storage[r][u][t] = _target_stk.slot_storage[r][u][t];
-          }
-        }
-      }
-
-    }
-    else {
-
-      for (int r = _pat->rowptr[_k - 1]; r < _pat->rowptr[_k]; r++) {
-        for (int u = 0; u < UNROLL_SIZE(_k - 1); u++) {
-          //printf("%d\n", _target_stk.slot_size[r][u]);
-          for (int t = 0; t < _target_stk.slot_size[r][u]; t++) {
-            _cur_stk.slot_storage[r][u][t] = _target_stk.slot_storage[r][u][t];
-          }
-        }
-      }
-
-      for (int r = _pat->rowptr[_k]; r < _pat->rowptr[_k + 1]; r++) {
-        for (int u = 0; u < UNROLL_SIZE(_k); u++) {
-          //printf("%d\n", _target_stk.slot_size[r][u]);
-          for (int t = 0; t < _target_stk.slot_size[r][u]; t++) {
+    for(int l=_k - 1>=0?_k - 1:_k; l<=_k; l++){
+      for (int r = _pat->rowptr[l]; r < _pat->rowptr[l+1]; r++) {
+        for (int u = 0; u < UNROLL_SIZE(l); u++) {
+          int loop_end = l==0? JOB_CHUNK_SIZE*2: _target_stk.slot_size[r][u];
+          for (int t = 0; t < loop_end; t++) {
             _cur_stk.slot_storage[r][u][t] = _target_stk.slot_storage[r][u][t];
           }
         }
       }
     }
-    //memcpy((_cur_stk.slot_storage[_pat->rowptr[_k]]), (_target_stk.slot_storage[_pat->rowptr[_k]]), (_pat->rowptr[_k + 1] - _pat->rowptr[_k]) * GRAPH_DEGREE * UNROLL_SIZE(_k) * sizeof(graph_node_t));
-
-    // Copy
 
     for (int l = 0; l < _k; l++)
     {
@@ -179,6 +133,7 @@ namespace libra {
 
   __device__ bool trans_skt(CallStack* _all_stk, CallStack* _cur_stk, Pattern* pat, int* _unroll_size, StealingArgs* _stealing_args)
   {
+
     // int local_mutex = 0;
     int max_left_task = 0;
     int stk_idx = -1;
