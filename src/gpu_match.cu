@@ -251,7 +251,6 @@ namespace libra {
 
   template<bool DIFF>
   __device__ void compute_set(Arg_t* arg) {
-    __shared__ int pos[NWARPS_PER_BLOCK][WARP_SIZE + 1];
     __shared__ graph_node_t size_psum[NWARPS_PER_BLOCK][WARP_SIZE + 1];
     __shared__ int end_pos[NWARPS_PER_BLOCK][UNROLL];
 
@@ -278,9 +277,7 @@ namespace libra {
     int offset = 0;
     int predicate;
 
-    int size1 = (size_psum[wid][WARP_SIZE] > 0) ? (((size_psum[wid][WARP_SIZE] - 1) / WARP_SIZE + 1) * WARP_SIZE) : 0;
-
-    for (int idx = tid; (idx < size1 && still_loop); idx += WARP_SIZE) {
+    for (int idx = tid; (idx < ((size_psum[wid][WARP_SIZE] > 0) ? (((size_psum[wid][WARP_SIZE] - 1) / WARP_SIZE + 1) * WARP_SIZE) : 0) && still_loop); idx += WARP_SIZE) {
       predicate = 0;
 
       if (idx < size_psum[wid][WARP_SIZE]) {
@@ -302,27 +299,23 @@ namespace libra {
 
       still_loop = __shfl_sync(0xFFFFFFFF, still_loop, 31);
       predicate = __ballot_sync(0xFFFFFFFF, predicate);
-      pos[wid][tid] = __popc(predicate & ((1 << tid) - 1));
-      pos[wid][WARP_SIZE] = __popc(predicate);
-      __syncwarp();
-
 
       graph_node_t res_tmp;
-      if (pos[wid][tid + 1] > pos[wid][tid]) {
+      if (predicate & (1 << tid)) {
         res_tmp = arg->set1[slot_idx][offset];
       }
-      __syncwarp();
+
       int prev_idx = ((idx / WARP_SIZE == size_psum[wid][slot_idx] / WARP_SIZE) ? size_psum[wid][slot_idx] % WARP_SIZE : 0);
 
-      if (pos[wid][tid + 1] > pos[wid][tid]) {
-        arg->res[slot_idx][end_pos[wid][slot_idx] + pos[wid][tid] - pos[wid][prev_idx]] = res_tmp;
+      if (predicate & (1 << tid)) {
+        arg->res[slot_idx][end_pos[wid][slot_idx] + __popc(predicate & ((1 << tid) - (1 << prev_idx)))] = res_tmp;
       }
 
       if (slot_idx < __shfl_down_sync(0xFFFFFFFF, slot_idx, 1)) {
-        end_pos[wid][slot_idx] += pos[wid][tid + 1] - pos[wid][prev_idx];
+        end_pos[wid][slot_idx] +=  __popc(predicate & ((1 << (tid+1)) - (1 << prev_idx)));
       }
       else if (tid == WARP_SIZE - 1 && slot_idx < arg->num_sets) {
-        end_pos[wid][slot_idx] += pos[wid][WARP_SIZE] - pos[wid][prev_idx];
+        end_pos[wid][slot_idx] += __popc(predicate & (0xFFFFFFFF - (1 << prev_idx) + 1));
       }
     }
     __syncwarp();
