@@ -1,9 +1,7 @@
 #include "gpu_match.cuh"
 #include <cuda.h>
 
-// TODO: change this to gpu array so we can use different unroll for diffrent levels
-//#define UNROLL_SIZE(l) UNROLL
-#define UNROLL_SIZE(l) _unroll_size[l]
+#define UNROLL_SIZE(l) (l > 0 ? UNROLL: 1) 
 
 namespace libra {
   struct StealingArgs {
@@ -22,7 +20,7 @@ namespace libra {
     atomicExch((int*)mutex, 0);
   }
 
-  __device__ bool trans_layer(CallStack& _target_stk, CallStack& _cur_stk, Pattern* _pat, int _k, int* _unroll_size, int ratio = 2) {
+  __device__ bool trans_layer(CallStack& _target_stk, CallStack& _cur_stk, Pattern* _pat, int _k, int ratio = 2) {
     if (_target_stk.level <= _k)
       return false;
 
@@ -108,11 +106,10 @@ namespace libra {
       _cur_stk.slot_size[_pat->rowptr[_pat->nnodes - 1]][u] = 0;
     }
     _cur_stk.level = _k + 1;
-    _cur_stk.start_level = _target_stk.start_level;
     return true;
   }
 
-  __device__ bool trans_skt(CallStack* _all_stk, CallStack* _cur_stk, Pattern* pat, int* _unroll_size, StealingArgs* _stealing_args) {
+  __device__ bool trans_skt(CallStack* _all_stk, CallStack* _cur_stk, Pattern* pat, StealingArgs* _stealing_args) {
 
     int max_left_task = 0;
     int stk_idx = -1;
@@ -148,7 +145,7 @@ namespace libra {
       bool res;
       lock(&(_stealing_args->local_mutex[threadIdx.x / WARP_SIZE]));
       lock(&(_stealing_args->local_mutex[stk_idx]));
-      res = trans_layer(_all_stk[stk_idx], *_cur_stk, pat, at_level, _unroll_size);
+      res = trans_layer(_all_stk[stk_idx], *_cur_stk, pat, at_level);
 
       unlock(&(_stealing_args->local_mutex[threadIdx.x / WARP_SIZE]));
       unlock(&(_stealing_args->local_mutex[stk_idx]));
@@ -162,7 +159,7 @@ namespace libra {
     if (level > 0)
       return stk->slot_storage[pat->rowptr[level]][stk->uiter[level]][stk->iter[level] + k];
     else {
-      return stk->slot_storage[0][stk->uiter[0]][stk->iter[0] + k + (stk->start_level + level - 1) * JOB_CHUNK_SIZE];
+      return stk->slot_storage[0][stk->uiter[0]][stk->iter[0] + k + (level + 1) * JOB_CHUNK_SIZE];
     }
   }
 
@@ -334,7 +331,7 @@ namespace libra {
     unlock(&(q->mutex));
   }
 
-  __device__ void extend(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, pattern_node_t level, int* _unroll_size) {
+  __device__ void extend(Graph* g, Pattern* pat, CallStack* stk, JobQueue* q, pattern_node_t level) {
 
     __shared__ Arg_t arg[NWARPS_PER_BLOCK];
     int wid = threadIdx.x / WARP_SIZE;
@@ -348,12 +345,11 @@ namespace libra {
           get_job(q, cur_job, njobs);
 
           for (size_t i = 0; i < njobs; i++) {
-            for (int j = 0; j < q->start_level; j++) {
+            for (int j = 0; j < 2; j++) {
               stk->slot_storage[0][k][i + JOB_CHUNK_SIZE * j] = (q->q[cur_job + i].nodes)[j];
             }
           }
           stk->slot_size[0][k] = njobs;
-          stk->start_level = q->start_level;
         }
         __syncwarp();
       }
@@ -376,19 +372,19 @@ namespace libra {
 
           // compute ub with nodes after start_level until previous level
           for (pattern_node_t k = 1; k < level - 1; k++) {
-            if ((pat->partial[i] & (1 << (k + stk->start_level - 1))) && ((i == pat->rowptr[level]) ^ (ub < path(stk, pat, k, stk->uiter[k + 1])))) ub = path(stk, pat, k, stk->uiter[k + 1]);
+            if ((pat->partial[i] & (1 << (k + 1))) && ((i == pat->rowptr[level]) ^ (ub < path(stk, pat, k, stk->uiter[k + 1])))) ub = path(stk, pat, k, stk->uiter[k + 1]);
           }
           // compute ub with nodes in the previous level
           for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
             arg[wid].ub[k] = ub;
-            int prev_level = (level > 1 ? stk->start_level : stk->start_level - 1);
+            int prev_level = (level > 1 ? 2 : 1);
             int prev_iter = (level > 1 ? stk->uiter[1] : k);
             // compute ub with the first few nodes before start_level
             for (pattern_node_t j = 0; j < prev_level; j++) {
-              if ((pat->partial[i] & (1 << j)) && ((i == pat->rowptr[level]) ^ (arg[wid].ub[k] < path(stk, pat, j + 1 - stk->start_level, prev_iter)))) arg[wid].ub[k] = path(stk, pat, j + 1 - stk->start_level, prev_iter);
+              if ((pat->partial[i] & (1 << j)) && ((i == pat->rowptr[level]) ^ (arg[wid].ub[k] < path(stk, pat, j -1, prev_iter)))) arg[wid].ub[k] = path(stk, pat, j -1, prev_iter);
             }
 
-            if ((pat->partial[i] & (1 << (level + stk->start_level - 2))) && ((i == pat->rowptr[level]) ^ (arg[wid].ub[k] < path(stk, pat, level - 1, k)))) arg[wid].ub[k] = path(stk, pat, level - 1, k);
+            if ((pat->partial[i] & (1 << level)) && ((i == pat->rowptr[level]) ^ (arg[wid].ub[k] < path(stk, pat, level - 1, k)))) arg[wid].ub[k] = path(stk, pat, level - 1, k);
             if (arg[wid].ub[k] == -1) arg[wid].ub[k] = INT_MAX;
           }
         }
@@ -421,7 +417,7 @@ namespace libra {
           compute_set<true>(&arg[wid]);
 
           if (!EDGE_INDUCED) {
-            for (pattern_node_t j = level - 3; j >= 1 - stk->start_level; j--) {
+            for (pattern_node_t j = level - 3; j >= -1; j--) {
               graph_node_t t = path(stk, pat, j, stk->uiter[(j > 0 ? j + 1 : 1)]);
 
               for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
@@ -503,7 +499,7 @@ namespace libra {
     stk->uiter[level] = 0;
   }
 
-  __forceinline__ __device__ void respond_across_block(int level, CallStack* stk, Pattern* pat, int* _unroll_size, StealingArgs* _stealing_args) {
+  __forceinline__ __device__ void respond_across_block(int level, CallStack* stk, Pattern* pat, StealingArgs* _stealing_args) {
     if (level > 0 && level <= DETECT_LEVEL) {
       if (threadIdx.x % WARP_SIZE == 0) {
         int at_level = -1;
@@ -522,7 +518,7 @@ namespace libra {
               if (atomicAdd(&_stealing_args->idle_warps[b], 0) == 0xFFFFFFFF) {
                 __threadfence();
 
-                trans_layer(*stk, _stealing_args->global_callstack[b * NWARPS_PER_BLOCK], pat, at_level, _unroll_size, INT_MAX);
+                trans_layer(*stk, _stealing_args->global_callstack[b * NWARPS_PER_BLOCK], pat, at_level, INT_MAX);
                 __threadfence();
 
                 atomicSub(_stealing_args->idle_warps_count, NWARPS_PER_BLOCK);
@@ -541,7 +537,7 @@ namespace libra {
   }
 
   __device__ void match(Graph* g, Pattern* pat,
-    CallStack* stk, JobQueue* q, size_t* count, int* _unroll_size, StealingArgs* _stealing_args) {
+    CallStack* stk, JobQueue* q, size_t* count, StealingArgs* _stealing_args) {
 
     pattern_node_t& level = stk->level;
 
@@ -551,15 +547,15 @@ namespace libra {
       }
       __syncwarp();
 
-      if (level < pat->nnodes - stk->start_level) {
+      if (level < pat->nnodes - 2) {
 
         if (STEAL_ACROSS_BLOCK) {
-          respond_across_block(level, stk, pat, _unroll_size, _stealing_args);
+          respond_across_block(level, stk, pat, _stealing_args);
         }
 
         if (stk->uiter[level] == 0 && stk->slot_size[pat->rowptr[level]][0] == 0) {
 
-          extend(g, pat, stk, q, level, _unroll_size);
+          extend(g, pat, stk, q, level);
           if (level == 0 && stk->slot_size[0][0] == 0) {
             if (threadIdx.x % WARP_SIZE == 0)
               unlock(&(_stealing_args->local_mutex[threadIdx.x / WARP_SIZE]));
@@ -592,10 +588,10 @@ namespace libra {
           }
         }
       }
-      else if (level == pat->nnodes - stk->start_level) {
+      else if (level == pat->nnodes - 2) {
 
         // TODO: we can save the storage of sets for the last level
-        extend(g, pat, stk, q, level, _unroll_size);
+        extend(g, pat, stk, q, level);
         for (int j = 0; j < UNROLL_SIZE(level); j++) {
           if (threadIdx.x % WARP_SIZE == 0) {
             *count += stk->slot_size[pat->rowptr[level]][j];
@@ -627,7 +623,6 @@ namespace libra {
     __shared__ size_t count[NWARPS_PER_BLOCK];
     __shared__ bool stealed[NWARPS_PER_BLOCK];
     __shared__ int mutex_this_block[NWARPS_PER_BLOCK];
-    __shared__ int unroll_size[PAT_SIZE];
 
     __shared__ StealingArgs stealing_args;
     stealing_args.idle_warps = idle_warps;
@@ -641,12 +636,6 @@ namespace libra {
     int local_wid = threadIdx.x / WARP_SIZE;
 
     if (threadIdx.x == 0) {
-      unroll_size[0] = 1;
-      unroll_size[1] = UNROLL;
-      unroll_size[2] = UNROLL;
-      unroll_size[3] = UNROLL;
-      unroll_size[4] = UNROLL;
-      unroll_size[5] = UNROLL;
       graph = *dev_graph;
       pat = *dev_pattern;
     }
@@ -661,7 +650,7 @@ namespace libra {
     auto start = clock64();
 
     while (true) {
-      match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid], unroll_size, &stealing_args);
+      match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid], &stealing_args);
       __syncwarp();
 
       stealed[local_wid] = false;
@@ -669,7 +658,7 @@ namespace libra {
       if (threadIdx.x % WARP_SIZE == 0) {
 
         if (STEAL_IN_BLOCK) {
-          stealed[local_wid] = trans_skt(stk, &stk[local_wid], &pat, unroll_size, &stealing_args);
+          stealed[local_wid] = trans_skt(stk, &stk[local_wid], &pat, &stealing_args);
         }
 
         if (STEAL_ACROSS_BLOCK) {

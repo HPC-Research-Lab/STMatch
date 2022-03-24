@@ -13,7 +13,6 @@ namespace libra {
     graph_node_t slot_size[MAX_SLOT_NUM][UNROLL];
     graph_node_t(*slot_storage)[UNROLL][GRAPH_DEGREE];
     pattern_node_t level;
-    int start_level;
   } CallStack;
 
 /*
