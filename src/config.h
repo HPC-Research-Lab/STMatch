@@ -30,5 +30,5 @@ namespace libra {
   inline constexpr bool STEAL_IN_BLOCK = true;
   inline constexpr bool STEAL_ACROSS_BLOCK = true;
   inline constexpr int DETECT_LEVEL = 1;
-  inline constexpr int STOP_LEVEL = 2;
+  inline constexpr int STOP_LEVEL = 3;
 }

@@ -31,17 +31,18 @@ namespace libra {
 
     int stealed_start_idx_in_target = _target_stk.iter[_k] + _target_stk.uiter[_k + 1] + 1 + num_left_task / ratio;
 
-    for (int i = 0; i < _k - 1; i++) {
-      _cur_stk.slot_storage[_pat->rowptr[i]][_target_stk.uiter[i]][_target_stk.iter[i]] = _target_stk.slot_storage[_pat->rowptr[i]][_target_stk.uiter[i]][_target_stk.iter[i]];
+    _cur_stk.slot_storage[_pat->rowptr[0]][_target_stk.uiter[0]][_target_stk.iter[0] + _target_stk.uiter[1]] = _target_stk.slot_storage[_pat->rowptr[0]][_target_stk.uiter[0]][_target_stk.iter[0] + _target_stk.uiter[1]];
+    _cur_stk.slot_storage[_pat->rowptr[0]][_target_stk.uiter[0]][_target_stk.iter[0] + _target_stk.uiter[1] + JOB_CHUNK_SIZE] = _target_stk.slot_storage[_pat->rowptr[0]][_target_stk.uiter[0]][_target_stk.iter[0] + _target_stk.uiter[1] + JOB_CHUNK_SIZE];
+
+    for (int i = 1; i < _k; i++) {
+      _cur_stk.slot_storage[_pat->rowptr[i]][_target_stk.uiter[i]][_target_stk.iter[i] + _target_stk.uiter[i + 1]] = _target_stk.slot_storage[_pat->rowptr[i]][_target_stk.uiter[i]][_target_stk.iter[i] + _target_stk.uiter[i + 1]];
     }
 
-    for (int l = _k - 1 >= 0 ? _k - 1 : _k; l <= _k; l++) {
-      for (int r = _pat->rowptr[l]; r < _pat->rowptr[l + 1]; r++) {
-        for (int u = 0; u < UNROLL_SIZE(l); u++) {
-          int loop_end = l == 0 ? JOB_CHUNK_SIZE * 2 : _target_stk.slot_size[r][u];
-          for (int t = 0; t < loop_end; t++) {
-            _cur_stk.slot_storage[r][u][t] = _target_stk.slot_storage[r][u][t];
-          }
+    for (int r = _pat->rowptr[_k]; r < _pat->rowptr[_k + 1]; r++) {
+      for (int u = 0; u < UNROLL_SIZE(_k); u++) {
+        int loop_end = _k == 0 ? JOB_CHUNK_SIZE * 2 : _target_stk.slot_size[r][u];
+        for (int t = 0; t < loop_end; t++) {
+          _cur_stk.slot_storage[r][u][t] = _target_stk.slot_storage[r][u][t];
         }
       }
     }
@@ -122,18 +123,12 @@ namespace libra {
           continue;
         lock(&(_stealing_args->local_mutex[i]));
 
-        if (_all_stk[i].level > level) {
-          int left_task = _all_stk[i].slot_size[pat->rowptr[level]][_all_stk[i].uiter[level]] -
-            (_all_stk[i].iter[level] + _all_stk[i].uiter[level + 1] + 1);
-          if (left_task > max_left_task) {
-            max_left_task = left_task;
-            stk_idx = i;
-            at_level = level;
-          }
-        }
-        else {
-          unlock(&(_stealing_args->local_mutex[i]));
-          continue;
+        int left_task = _all_stk[i].slot_size[pat->rowptr[level]][_all_stk[i].uiter[level]] -
+          (_all_stk[i].iter[level] + _all_stk[i].uiter[level + 1] + 1);
+        if (left_task > max_left_task) {
+          max_left_task = left_task;
+          stk_idx = i;
+          at_level = level;
         }
         unlock(&(_stealing_args->local_mutex[i]));
       }
@@ -309,7 +304,7 @@ namespace libra {
       }
 
       if (slot_idx < __shfl_down_sync(0xFFFFFFFF, slot_idx, 1)) {
-        end_pos[wid][slot_idx] +=  __popc(predicate & ((1 << (tid+1)) - (1 << prev_idx)));
+        end_pos[wid][slot_idx] += __popc(predicate & ((1 << (tid + 1)) - (1 << prev_idx)));
       }
       else if (tid == WARP_SIZE - 1 && slot_idx < arg->num_sets) {
         end_pos[wid][slot_idx] += __popc(predicate & (0xFFFFFFFF - (1 << prev_idx) + 1));
@@ -381,7 +376,7 @@ namespace libra {
             int prev_iter = (level > 1 ? stk->uiter[1] : k);
             // compute ub with the first few nodes before start_level
             for (pattern_node_t j = 0; j < prev_level; j++) {
-              if ((pat->partial[i] & (1 << j)) && ((i == pat->rowptr[level]) ^ (arg[wid].ub[k] < path(stk, pat, j -1, prev_iter)))) arg[wid].ub[k] = path(stk, pat, j -1, prev_iter);
+              if ((pat->partial[i] & (1 << j)) && ((i == pat->rowptr[level]) ^ (arg[wid].ub[k] < path(stk, pat, j - 1, prev_iter)))) arg[wid].ub[k] = path(stk, pat, j - 1, prev_iter);
             }
 
             if ((pat->partial[i] & (1 << level)) && ((i == pat->rowptr[level]) ^ (arg[wid].ub[k] < path(stk, pat, level - 1, k)))) arg[wid].ub[k] = path(stk, pat, level - 1, k);
