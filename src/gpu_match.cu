@@ -165,11 +165,13 @@ namespace libra {
     bitarray32 label;
     Graph* g;
     int num_sets;
+    bool cached;
   } Arg_t;
 
   template<typename DATA_T, typename SIZE_T>
   __forceinline__ __device__
     bool bsearch_exist(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
+    if (set2_size <= 0) return false;
     int mid;
     int low = 0;
     int high = set2_size - 1;
@@ -242,7 +244,7 @@ namespace libra {
 
 
   template<bool DIFF>
-  __device__ void compute_set(Arg_t* arg, bool cached) {
+  __device__ void compute_set(Arg_t* arg) {
     __shared__ graph_node_t size_psum[NWARPS_PER_BLOCK][WARP_SIZE + 1];
     __shared__ int end_pos[NWARPS_PER_BLOCK][UNROLL];
 
@@ -280,7 +282,7 @@ namespace libra {
         offset = idx - size_psum[wid][slot_idx];
 
         bitarray32 lb = arg->g->vertex_label[arg->set1[slot_idx][offset]];
-        if ((lb && arg->label == lb) && (DIFF ^ bsearch_exist(arg->set2[slot_idx], arg->set2_size[slot_idx], arg->set1[slot_idx][offset]))) {
+        if (((lb & arg->label) == lb) && (DIFF ^ bsearch_exist(arg->set2[slot_idx], arg->set2_size[slot_idx], arg->set1[slot_idx][offset]))) {
           predicate = 1;
         }
       }
@@ -409,7 +411,8 @@ namespace libra {
             arg[wid].set1_size[k] = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
             arg[wid].res_size[k] = &(stk->slot_size[i][k]);
           }
-          compute_set<true>(&arg[wid], level > 1);
+          arg[wid].cached = (level > 1);
+          compute_set<true>(&arg[wid]);
 
           if (!EDGE_INDUCED) {
             for (pattern_node_t j = level - 3; j >= -1; j--) {
@@ -423,7 +426,8 @@ namespace libra {
                 arg[wid].set2_size[k] = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
                 arg[wid].res_size[k] = &(stk->slot_size[i][k]);
               }
-              compute_set<true>(&arg[wid], true);
+              arg[wid].cached = true;
+              compute_set<true>(&arg[wid]);
             }
           }
           for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
@@ -453,7 +457,8 @@ namespace libra {
               arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
               arg[wid].res_size[k] = &(stk->slot_size[i][k]);
             }
-            compute_set<false>(&arg[wid], level > 1);
+            arg[wid].cached = (level > 1);
+            compute_set<false>(&arg[wid]);
             for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
 
           }
@@ -483,7 +488,8 @@ namespace libra {
               arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
               arg[wid].res_size[k] = &(stk->slot_size[i][k]);
             }
-            compute_set<true>(&arg[wid], false);
+            arg[wid].cached = false;
+            compute_set<true>(&arg[wid]);
             for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
 
           }
@@ -695,7 +701,7 @@ namespace libra {
     if (threadIdx.x % WARP_SIZE == 0) {
       res[global_wid] = count[local_wid];
       // printf("%d\t%ld\t%d\t%d\n", blockIdx.x, stop - start, stealed[local_wid], local_wid);
-      // printf("%ld\n", stop - start);
+      //printf("%ld\n", stop - start);
     }
 
     // if(threadIdx.x % WARP_SIZE == 0)
