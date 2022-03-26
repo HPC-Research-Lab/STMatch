@@ -190,35 +190,6 @@ namespace libra {
     return false;
   }
 
-
-  template<typename DATA_T, typename SIZE_T>
-  __forceinline__ __device__ bool binary_search_2phase(DATA_T* list, DATA_T* cache, SIZE_T size, DATA_T key) {
-    if (size <= 0) return false;
-    int mid = 0;
-    // phase 1: search in the cache
-    int bottom = 0;
-    int top = WARP_SIZE;
-    while (top > bottom + 1) {
-      mid = (top + bottom) / 2;
-      DATA_T y = cache[mid];
-      if (key == y) return true;
-      if (key < y) top = mid;
-      if (key > y) bottom = mid;
-    }
-
-    //phase 2: search in global memory
-    bottom = bottom * size / WARP_SIZE;
-    top = top * size / WARP_SIZE - 1;
-    while (top >= bottom) {
-      mid = (top + bottom) / 2;
-      DATA_T y = list[mid];
-      if (key == y) return true;
-      if (key < y) top = mid - 1;
-      else bottom = mid + 1;
-    }
-    return false;
-  }
-
   template<typename DATA_T, typename SIZE_T>
   __forceinline__ __device__
     SIZE_T upper_bound(DATA_T* set2, SIZE_T set2_size, DATA_T target) {
@@ -276,15 +247,9 @@ namespace libra {
   __device__ void compute_set(Arg_t* arg) {
     __shared__ graph_node_t size_psum[NWARPS_PER_BLOCK][WARP_SIZE + 1];
     __shared__ int end_pos[NWARPS_PER_BLOCK][UNROLL];
-    // __shared__ int cache[NWARPS_PER_BLOCK][WARP_SIZE];
 
     int wid = threadIdx.x / WARP_SIZE;
     int tid = threadIdx.x % WARP_SIZE;
-
-    //    if ((arg->set2_size[0] > 0) && arg->cached) {
-     //     cache[wid][tid] = arg->set2[0][tid * arg->set2_size[0] / WARP_SIZE];
-      //  }
-
 
     if (tid < arg->num_sets) {
       arg->set1_size[tid] = upper_bound(arg->set1[tid], arg->set1_size[tid], arg->ub[tid]);
@@ -316,8 +281,6 @@ namespace libra {
         offset = idx - size_psum[wid][slot_idx];
 
         bitarray32 lb = arg->g->vertex_label[arg->set1[slot_idx][offset]];
-        //  if (arg->cached) predicate = (DIFF ^ binary_search_2phase(arg->set2[slot_idx], &cache[wid][0], arg->set2_size[slot_idx], arg->set1[slot_idx][offset]));
-         // else 
         predicate = ((lb & arg->label) == lb) && (DIFF ^ bsearch_exist(arg->set2[slot_idx], arg->set2_size[slot_idx], arg->set1[slot_idx][offset]));
       }
       else {
