@@ -13,7 +13,7 @@ namespace libra {
   inline constexpr size_t MAX_SLOT_NUM = 11;
 
   inline constexpr bool LABELED = false;
-  inline constexpr bool EDGE_INDUCED = false;
+  inline constexpr bool EDGE_INDUCED = true;
 
   inline constexpr int GRID_DIM = 82;
   inline constexpr int BLOCK_DIM = 1024;
@@ -30,5 +30,5 @@ namespace libra {
   inline constexpr bool STEAL_IN_BLOCK = true;
   inline constexpr bool STEAL_ACROSS_BLOCK = true;
   inline constexpr int DETECT_LEVEL = 1;
-  inline constexpr int STOP_LEVEL = 3;
+  inline constexpr int STOP_LEVEL = 2;
 }
