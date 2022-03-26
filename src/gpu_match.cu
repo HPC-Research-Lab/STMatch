@@ -242,7 +242,7 @@ namespace libra {
 
 
   template<bool DIFF>
-  __device__ void compute_set(Arg_t* arg) {
+  __device__ void compute_set(Arg_t* arg, bool cached) {
     __shared__ graph_node_t size_psum[NWARPS_PER_BLOCK][WARP_SIZE + 1];
     __shared__ int end_pos[NWARPS_PER_BLOCK][UNROLL];
 
@@ -409,7 +409,7 @@ namespace libra {
             arg[wid].set1_size[k] = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
             arg[wid].res_size[k] = &(stk->slot_size[i][k]);
           }
-          compute_set<true>(&arg[wid]);
+          compute_set<true>(&arg[wid], level > 1);
 
           if (!EDGE_INDUCED) {
             for (pattern_node_t j = level - 3; j >= -1; j--) {
@@ -423,7 +423,7 @@ namespace libra {
                 arg[wid].set2_size[k] = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
                 arg[wid].res_size[k] = &(stk->slot_size[i][k]);
               }
-              compute_set<true>(&arg[wid]);
+              compute_set<true>(&arg[wid], true);
             }
           }
           for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
@@ -439,21 +439,21 @@ namespace libra {
               graph_node_t neighbor_size = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
 
               if (level > 1) {
-                arg[wid].set1[k] = &(stk->slot_storage[slot_idx][stk->uiter[level - 1]][0]);
-                arg[wid].set1_size[k] = stk->slot_size[slot_idx][stk->uiter[level - 1]];
+                arg[wid].set2[k] = &(stk->slot_storage[slot_idx][stk->uiter[level - 1]][0]);
+                arg[wid].set2_size[k] = stk->slot_size[slot_idx][stk->uiter[level - 1]];
               }
               else {
                 graph_node_t t = path(stk, pat, -1, k);
-                arg[wid].set1[k] = &g->colidx[g->rowptr[t]];
-                arg[wid].set1_size[k] = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
+                arg[wid].set2[k] = &g->colidx[g->rowptr[t]];
+                arg[wid].set2_size[k] = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
               }
 
-              arg[wid].set2[k] = neighbor;
-              arg[wid].set2_size[k] = neighbor_size;
+              arg[wid].set1[k] = neighbor;
+              arg[wid].set1_size[k] = neighbor_size;
               arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
               arg[wid].res_size[k] = &(stk->slot_size[i][k]);
             }
-            compute_set<false>(&arg[wid]);
+            compute_set<false>(&arg[wid], level > 1);
             for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
 
           }
@@ -483,7 +483,7 @@ namespace libra {
               arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
               arg[wid].res_size[k] = &(stk->slot_size[i][k]);
             }
-            compute_set<true>(&arg[wid]);
+            compute_set<true>(&arg[wid], false);
             for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
 
           }
