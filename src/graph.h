@@ -48,8 +48,8 @@ namespace libra {
     // TODO: dryadic graph format 
 
     void readfile(std::string& filename) {
-      //read_lg_file(filename);
-      read_bin_file(filename);
+      read_lg_file(filename);
+      //read_bin_file(filename);
 
     }
 

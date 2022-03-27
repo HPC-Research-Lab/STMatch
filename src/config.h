@@ -13,7 +13,7 @@ namespace libra {
   inline constexpr size_t MAX_SLOT_NUM = 11;
 
   inline constexpr bool LABELED = false;
-  inline constexpr bool EDGE_INDUCED = false;
+  inline constexpr bool EDGE_INDUCED = true;
 
   inline constexpr int GRID_DIM = 82;
   inline constexpr int BLOCK_DIM = 1024;

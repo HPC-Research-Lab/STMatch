@@ -665,11 +665,13 @@ namespace libra {
 
             atomicAdd(stealing_args.idle_warps_count, 1);
 
-            lock(&(stealing_args.global_mutex[blockIdx.x]));
+            while (atomicCAS((int*)&(stealing_args.global_mutex[blockIdx.x]), 0, 1) != 0);
+            __threadfence();
 
             atomicOr(&stealing_args.idle_warps[blockIdx.x], (1 << local_wid));
 
-            unlock(&(stealing_args.global_mutex[blockIdx.x]));
+            __threadfence();
+            atomicExch((int*)&(stealing_args.global_mutex[blockIdx.x]), 0);
 
             while ((atomicAdd(stealing_args.idle_warps_count, 0) < NWARPS_TOTAL) && (atomicAdd(&stealing_args.idle_warps[blockIdx.x], 0) & (1 << local_wid)));
 
