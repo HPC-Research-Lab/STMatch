@@ -166,6 +166,8 @@ namespace libra {
     Graph* g;
     int num_sets;
     bool cached;
+    int level;
+    Pattern* pat;
   } Arg_t;
 
   template<typename DATA_T, typename SIZE_T>
@@ -291,14 +293,15 @@ namespace libra {
       still_loop = __shfl_sync(0xFFFFFFFF, still_loop, 31);
       predicate = __ballot_sync(0xFFFFFFFF, predicate);
 
+      bool cond = (arg->level < arg->pat->nnodes - 2 && predicate & (1 << tid));
       graph_node_t res_tmp;
-      if (predicate & (1 << tid)) {
+      if (cond) {
         res_tmp = arg->set1[slot_idx][offset];
       }
 
       int prev_idx = ((idx / WARP_SIZE == size_psum[wid][slot_idx] / WARP_SIZE) ? size_psum[wid][slot_idx] % WARP_SIZE : 0);
 
-      if (predicate & (1 << tid)) {
+      if (cond) {
         arg->res[slot_idx][end_pos[wid][slot_idx] + __popc(predicate & ((1 << tid) - (1 << prev_idx)))] = res_tmp;
       }
 
@@ -408,7 +411,9 @@ namespace libra {
             arg[wid].set1_size[k] = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
             arg[wid].res_size[k] = &(stk->slot_size[i][k]);
           }
-          arg[wid].cached = (level > 1);
+          // arg[wid].cached = (level > 1);
+          arg[wid].level = level;
+          arg[wid].pat = pat;
           compute_set<true>(&arg[wid]);
 
           if (!EDGE_INDUCED) {
@@ -423,7 +428,9 @@ namespace libra {
                 arg[wid].set2_size[k] = (graph_node_t)(g->rowptr[t + 1] - g->rowptr[t]);
                 arg[wid].res_size[k] = &(stk->slot_size[i][k]);
               }
-              arg[wid].cached = true;
+              //arg[wid].cached = true;
+              arg[wid].level = level;
+              arg[wid].pat = pat;
               compute_set<true>(&arg[wid]);
             }
           }
@@ -454,7 +461,9 @@ namespace libra {
               arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
               arg[wid].res_size[k] = &(stk->slot_size[i][k]);
             }
-            arg[wid].cached = (level > 1);
+            //arg[wid].cached = (level > 1);
+            arg[wid].level = level;
+            arg[wid].pat = pat;
             compute_set<false>(&arg[wid]);
             for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
 
@@ -485,7 +494,9 @@ namespace libra {
               arg[wid].res[k] = &(stk->slot_storage[i][k][0]);
               arg[wid].res_size[k] = &(stk->slot_size[i][k]);
             }
-            arg[wid].cached = false;
+            //arg[wid].cached = false;
+            arg[wid].level = level;
+            arg[wid].pat = pat;
             compute_set<true>(&arg[wid]);
             for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
 
@@ -588,7 +599,6 @@ namespace libra {
       }
       else if (level == pat->nnodes - 2) {
 
-        // TODO: we can save the storage of sets for the last level
         extend(g, pat, stk, q, level);
         for (int j = 0; j < UNROLL_SIZE(level); j++) {
           if (threadIdx.x % WARP_SIZE == 0) {
