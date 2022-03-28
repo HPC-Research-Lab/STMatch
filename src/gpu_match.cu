@@ -663,25 +663,26 @@ namespace libra {
 
       stealed[local_wid] = false;
 
-      if (threadIdx.x % WARP_SIZE == 0) {
+      if (STEAL_IN_BLOCK) {
 
-        if (STEAL_IN_BLOCK) {
+        if (threadIdx.x % WARP_SIZE == 0) {
           stealed[local_wid] = trans_skt(stk, &stk[local_wid], &pat, &stealing_args);
         }
+        __syncwarp();
+      }
 
-        if (STEAL_ACROSS_BLOCK) {
+      if (STEAL_ACROSS_BLOCK) {
+        if (!stealed[local_wid]) {
 
-          if (!stealed[local_wid]) {
+          if (threadIdx.x % WARP_SIZE == 0) {
 
             atomicAdd(stealing_args.idle_warps_count, 1);
 
-            while (atomicCAS((int*)&(stealing_args.global_mutex[blockIdx.x]), 0, 1) != 0);
-            __threadfence();
+            lock(&(stealing_args.global_mutex[blockIdx.x]));
 
             atomicOr(&stealing_args.idle_warps[blockIdx.x], (1 << local_wid));
 
-            __threadfence();
-            atomicExch((int*)&(stealing_args.global_mutex[blockIdx.x]), 0);
+            unlock(&(stealing_args.global_mutex[blockIdx.x]));
 
             while ((atomicAdd(stealing_args.idle_warps_count, 0) < NWARPS_TOTAL) && (atomicAdd(&stealing_args.idle_warps[blockIdx.x], 0) & (1 << local_wid)));
 
@@ -697,9 +698,10 @@ namespace libra {
               stealed[local_wid] = false;
             }
           }
+          __syncthreads();
         }
       }
-      __syncwarp();
+      
       if (!stealed[local_wid]) {
         break;
       }
