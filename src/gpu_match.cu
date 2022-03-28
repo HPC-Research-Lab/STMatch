@@ -674,6 +674,8 @@ namespace libra {
       if (STEAL_ACROSS_BLOCK) {
         if (!stealed[local_wid]) {
 
+          __syncthreads();
+
           if (threadIdx.x % WARP_SIZE == 0) {
 
             atomicAdd(stealing_args.idle_warps_count, 1);

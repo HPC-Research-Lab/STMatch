@@ -13,7 +13,7 @@ namespace libra {
   inline constexpr size_t MAX_SLOT_NUM = 11;
 
   inline constexpr bool LABELED = false;
-  inline constexpr bool EDGE_INDUCED = false;
+  inline constexpr bool EDGE_INDUCED = true;
 
   inline constexpr int GRID_DIM = 82;
   inline constexpr int BLOCK_DIM = 1024;
@@ -21,7 +21,7 @@ namespace libra {
   inline constexpr int NWARPS_PER_BLOCK = (BLOCK_DIM / WARP_SIZE);
   inline constexpr int NWARPS_TOTAL = ((GRID_DIM * BLOCK_DIM + WARP_SIZE - 1) / WARP_SIZE);
 
-  inline constexpr graph_node_t JOB_CHUNK_SIZE = 8;
+  inline constexpr graph_node_t JOB_CHUNK_SIZE = 32;
   //static_assert(2 * JOB_CHUNK_SIZE <= GRAPH_DEGREE); 
 
   // this is the maximum unroll size
