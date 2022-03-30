@@ -28,10 +28,8 @@ namespace libra {
           for (graph_node_t j = g.rowptr[r]; j < g.rowptr[r + 1]; j++) {
             graph_node_t c = g.colidx[j];
             if (r > c) {
-              if ((g.vertex_label[r] == (1 << p.vertex_labels[0])) && (g.vertex_label[c] == ( 1 << p.vertex_labels[1]))) {
-                vr.push_back(r);
-                vc.push_back(c);
-              }
+              vr.push_back(r);
+              vc.push_back(c);
             }
           }
         }
@@ -40,7 +38,7 @@ namespace libra {
         for (graph_node_t r = 0; r < g.nnodes; r++) {
           for (graph_node_t j = g.rowptr[r]; j < g.rowptr[r + 1]; j++) {
             graph_node_t c = g.colidx[j];
-              if ((g.vertex_label[r] == (1 << p.vertex_labels[0])) && (g.vertex_label[c] == ( 1 << p.vertex_labels[1]))) {
+            if ((g.vertex_label[r] == (1 << p.vertex_labels[0])) && (g.vertex_label[c] == (1 << p.vertex_labels[1]))) {
               vr.push_back(r);
               vc.push_back(c);
             }
