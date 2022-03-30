@@ -364,25 +364,32 @@ namespace libra {
       for (int i = pat->rowptr[level]; i < pat->rowptr[level + 1]; i++) {
 
         // compute ub based on pattern->partial
-        graph_node_t ub = ((i == pat->rowptr[level]) ? INT_MAX : -1);
-        if (pat->partial[i] != 0) {
+        if (!LABELED) {
+          graph_node_t ub = ((i == pat->rowptr[level]) ? INT_MAX : -1);
+          if (pat->partial[i] != 0) {
 
-          // compute ub with nodes after start_level until previous level
-          for (pattern_node_t k = 1; k < level - 1; k++) {
-            if ((pat->partial[i] & (1 << (k + 1))) && ((i == pat->rowptr[level]) ^ (ub < path(stk, pat, k, stk->uiter[k + 1])))) ub = path(stk, pat, k, stk->uiter[k + 1]);
-          }
-          // compute ub with nodes in the previous level
-          for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
-            arg[wid].ub[k] = ub;
-            int prev_level = (level > 1 ? 2 : 1);
-            int prev_iter = (level > 1 ? stk->uiter[1] : k);
-            // compute ub with the first few nodes before start_level
-            for (pattern_node_t j = 0; j < prev_level; j++) {
-              if ((pat->partial[i] & (1 << j)) && ((i == pat->rowptr[level]) ^ (arg[wid].ub[k] < path(stk, pat, j - 1, prev_iter)))) arg[wid].ub[k] = path(stk, pat, j - 1, prev_iter);
+            // compute ub with nodes after start_level until previous level
+            for (pattern_node_t k = 1; k < level - 1; k++) {
+              if ((pat->partial[i] & (1 << (k + 1))) && ((i == pat->rowptr[level]) ^ (ub < path(stk, pat, k, stk->uiter[k + 1])))) ub = path(stk, pat, k, stk->uiter[k + 1]);
             }
+            // compute ub with nodes in the previous level
+            for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
+              arg[wid].ub[k] = ub;
+              int prev_level = (level > 1 ? 2 : 1);
+              int prev_iter = (level > 1 ? stk->uiter[1] : k);
+              // compute ub with the first few nodes before start_level
+              for (pattern_node_t j = 0; j < prev_level; j++) {
+                if ((pat->partial[i] & (1 << j)) && ((i == pat->rowptr[level]) ^ (arg[wid].ub[k] < path(stk, pat, j - 1, prev_iter)))) arg[wid].ub[k] = path(stk, pat, j - 1, prev_iter);
+              }
 
-            if ((pat->partial[i] & (1 << level)) && ((i == pat->rowptr[level]) ^ (arg[wid].ub[k] < path(stk, pat, level - 1, k)))) arg[wid].ub[k] = path(stk, pat, level - 1, k);
-            if (arg[wid].ub[k] == -1) arg[wid].ub[k] = INT_MAX;
+              if ((pat->partial[i] & (1 << level)) && ((i == pat->rowptr[level]) ^ (arg[wid].ub[k] < path(stk, pat, level - 1, k)))) arg[wid].ub[k] = path(stk, pat, level - 1, k);
+              if (arg[wid].ub[k] == -1) arg[wid].ub[k] = INT_MAX;
+            }
+          }
+          else {
+            for (pattern_node_t k = 0; k < arg[wid].num_sets; k++) {
+              arg[wid].ub[k] = INT_MAX;
+            }
           }
         }
         else {
@@ -703,7 +710,7 @@ namespace libra {
           __syncthreads();
         }
       }
-      
+
       if (!stealed[local_wid]) {
         break;
       }
