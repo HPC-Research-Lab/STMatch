@@ -21,48 +21,42 @@ namespace libra {
     JobQueue q;
 
 
-    JobQueuePreprocessor(Graph& g, Pattern& p, bool enum_edge = true) {
-      if (enum_edge) {
-        std::vector<graph_node_t> vr, vc;
-        if (p.partial[0] == 1) {
-          for (graph_node_t r = 0; r < g.nnodes; r++) {
-            for (graph_node_t j = g.rowptr[r]; j < g.rowptr[r + 1]; j++) {
-              graph_node_t c = g.colidx[j];
-              if (r > c) {
+    JobQueuePreprocessor(Graph& g, PatternPreprocessor& p) {
+      std::vector<graph_node_t> vr, vc;
+      if (p.partial[0][0] == 1) {
+        for (graph_node_t r = 0; r < g.nnodes; r++) {
+          for (graph_node_t j = g.rowptr[r]; j < g.rowptr[r + 1]; j++) {
+            graph_node_t c = g.colidx[j];
+            if (r > c) {
+              if ((g.vertex_label[r] == (1 << p.vertex_labels[0])) && (g.vertex_label[c] == ( 1 << p.vertex_labels[1]))) {
                 vr.push_back(r);
                 vc.push_back(c);
               }
             }
           }
         }
-        else {
-          for (graph_node_t r = 0; r < g.nnodes; r++) {
-            for (graph_node_t j = g.rowptr[r]; j < g.rowptr[r + 1]; j++) {
-              graph_node_t c = g.colidx[j];
+      }
+      else {
+        for (graph_node_t r = 0; r < g.nnodes; r++) {
+          for (graph_node_t j = g.rowptr[r]; j < g.rowptr[r + 1]; j++) {
+            graph_node_t c = g.colidx[j];
+              if ((g.vertex_label[r] == (1 << p.vertex_labels[0])) && (g.vertex_label[c] == ( 1 << p.vertex_labels[1]))) {
               vr.push_back(r);
               vc.push_back(c);
             }
           }
         }
+      }
 
-        q.q = new Job[vr.size()];
-        for (graph_node_t i = 0; i < vr.size(); i++) {
-          (q.q[i].nodes)[0] = vr[i];
-          (q.q[i].nodes)[1] = vc[i];
-        }
-        q.length = vr.size();
-        q.cur = 0;
-        q.start_level = 2;
+      q.q = new Job[vr.size()];
+      for (graph_node_t i = 0; i < vr.size(); i++) {
+        (q.q[i].nodes)[0] = vr[i];
+        (q.q[i].nodes)[1] = vc[i];
       }
-      else {
-        q.q = new Job[g.nnodes];
-        for (graph_node_t i = 0; i<g.nnodes; i++) {
-          (q.q[i].nodes)[0] = i;
-        }
-        q.length = g.nnodes;
-        q.cur = 0;
-        q.start_level = 1;
-      }
+      q.length = vr.size();
+      q.cur = 0;
+      q.start_level = 2;
+
     }
 
     JobQueue* to_gpu() {

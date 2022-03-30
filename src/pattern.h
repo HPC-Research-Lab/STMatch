@@ -345,6 +345,7 @@ namespace libra {
       int count = 1;
       pat.rowptr[0] = 0;
       pat.rowptr[1] = 1;
+      // this is used for filtering the edges in job queue
       pat.partial[0] = partial[0][0];
       for (int i = 1; i < pat.nnodes - 1; i++) {
         for (int j = 0; j < PAT_SIZE; j++) {
