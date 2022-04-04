@@ -283,7 +283,9 @@ namespace libra {
         offset = idx - size_psum[wid][slot_idx];
 
         bitarray32 lb = arg->g->vertex_label[arg->set1[slot_idx][offset]];
+
         predicate = ((lb & arg->label) == lb) && (DIFF ^ bsearch_exist(arg->set2[slot_idx], arg->set2_size[slot_idx], arg->set1[slot_idx][offset]));
+
       }
       else {
         slot_idx = arg->num_sets;

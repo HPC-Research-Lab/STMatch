@@ -18,6 +18,7 @@ namespace libra {
 
     pattern_node_t nnodes = 0;
     int rowptr[PAT_SIZE];
+    int degree[PAT_SIZE];
     bitarray32 slot_labels[MAX_SLOT_NUM];
     bitarray32 partial[MAX_SLOT_NUM];
     set_op_t set_ops[MAX_SLOT_NUM];
@@ -128,9 +129,20 @@ namespace libra {
       for (int i = 0; i < pat.nnodes; i++)
         order_map_[vertex_order_[i]] = i;*/
 
+
+      
+
       for (int i = 0; i < pat.nnodes; i++) {
         vertex_order_[i] = i;
         order_map_[vertex_order_[i]] = i;
+      }
+
+      for (int i = 0; i < pat.nnodes; i++) {
+        int d = 0;
+        for (int j = 0; j < pat.nnodes; j++) {
+          if (adj_matrix_[i][j] > 0) d++;
+        }
+        pat.degree[order_map_[i]] = d;
       }
     }
 

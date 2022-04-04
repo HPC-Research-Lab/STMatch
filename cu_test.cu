@@ -7,7 +7,7 @@ using namespace libra;
 
 int main(int argc, char* argv[]) {
 
-  cudaSetDevice(1);
+  cudaSetDevice(0);
 
   libra::GraphPreprocessor g(argv[1]);
   libra::PatternPreprocessor p(argv[2]);
