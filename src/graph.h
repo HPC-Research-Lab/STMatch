@@ -148,7 +148,9 @@ namespace libra {
       int* lb = new int[n_vertices];
       memset(lb, 1, n_vertices * sizeof(int));
       g.vertex_label = new bitarray32[n_vertices];
-      //read_subfile(prefix + ".label.bin", lb, n_vertices);
+      if(LABELED) {
+        read_subfile(filename + ".label.bin", lb, n_vertices);
+      }
       for (int i = 0; i < n_vertices; i++) {
         g.vertex_label[i] = (1 << lb[i]);
       }

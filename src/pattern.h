@@ -77,7 +77,12 @@ namespace libra {
         int v;
         int label;
         sin >> tmp >> v >> label;
-        vertex_labels.push_back(label);
+        if(LABELED){
+          vertex_labels.push_back(label);
+        }
+        else{
+          vertex_labels.push_back(1);
+        }
         pat.nnodes++;
       } while (std::getline(fin, line) && (line[0] == 'v'));
 
