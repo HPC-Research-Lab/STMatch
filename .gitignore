@@ -1,6 +1,6 @@
 build/*
-data/*
-data/graph/*
+data/bin_graph/*
+data/txt_graph/*
 .vscode/*
 legacy/*
 examples/*
