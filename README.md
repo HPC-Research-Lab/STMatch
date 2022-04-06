@@ -2,8 +2,7 @@
 
 ## Overview
 
-SampleMine is a general-purpose system for subgraph pattern mining based on subgraph enumeration and sampling. Example tasks that SampleMine supports are:
-
+Libra is a general-purpose system for subgraph pattern matching. 
 
 ## Building Libra
 
