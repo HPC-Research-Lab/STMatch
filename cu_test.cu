@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
 
   size_t tot_count = 0;
   for (int i=0; i<NWARPS_TOTAL; i++) tot_count += res[i];
-  printf("%f, %lu\n", milliseconds, tot_count);
+  printf("%s\t%s\t%f\t%lu\n", argv[1], argv[2], milliseconds, tot_count);
   //cout << "count: " << tot_count << endl;
   return 0;
 }
