@@ -1,0 +1,24 @@
+
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/5_14.txt 2.p
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/5_15.txt 3.p
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/5_16.txt 4.p
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/5_17.txt 5.p
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/5_18.txt 6.p
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/5_19.txt 7.p
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/5_20.txt 8.p
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/6_47.txt 9.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/6_28.txt 10.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/6_50.txt 11.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/6_53.txt 15.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/6_62.txt 16.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/6_107.txt 12.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/6_110.txt 13.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/6_111.txt 14.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/7_830.txt 17.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/7_845.txt 18.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/7_846.txt 19.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/7_847.txt 20.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/7_848.txt 21.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/7_850.txt 22.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/7_851.txt 23.g
+cp ~/graphs/our_test_data/edge_induced_patterns_labeled/7_852.txt 24.g
