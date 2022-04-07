@@ -1,10 +1,8 @@
-# Libra: a load-balancing graph mining system 
-
 ## Overview
 
-Libra is a general-purpose system for subgraph pattern matching. 
+STMatch is a stack-based subgraph pattern matching on GPU. 
 
-## Building Libra
+## Building STMatch
 
 ### Data Preparation
 
