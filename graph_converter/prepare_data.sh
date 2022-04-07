@@ -4,8 +4,8 @@ graphs=(
     https://snap.stanford.edu/data/bigdata/communities/com-amazon.ungraph.txt.gz
     https://snap.stanford.edu/data/bigdata/communities/com-youtube.ungraph.txt.gz
     https://snap.stanford.edu/data/soc-LiveJournal1.txt.gz
-    https://snap.stanford.edu/data/bigdata/communities/com-orkut.ungraph.txt.gz
-    https://snap.stanford.edu/data/bigdata/communities/com-friendster.ungraph.txt.gz
+    #https://snap.stanford.edu/data/bigdata/communities/com-orkut.ungraph.txt.gz
+    #https://snap.stanford.edu/data/bigdata/communities/com-friendster.ungraph.txt.gz
 )
 
 txtdir=../data/txt_graph/
