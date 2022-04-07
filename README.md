@@ -1,8 +1,5 @@
-# STMatch: a load-balancing graph mining system 
-
 ## Overview
-
-STMatch is a general-purpose system for subgraph pattern matching. 
+STMatch is a stack-based subgraph pattern matching on GPU. 
 
 ## Building STMatch
 
