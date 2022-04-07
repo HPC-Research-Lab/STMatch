@@ -1,7 +1,7 @@
 ## Overview
 STMatch is a stack-based subgraph pattern matching system on GPU. 
 
-## Building STMatch
+## Build STMatch
 
 ### Data Preparation
 
