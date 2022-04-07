@@ -1,6 +1,6 @@
 #pragma once
 
-namespace libra {
+namespace STMatch {
 
   typedef int graph_node_t;
   typedef long graph_edge_t;

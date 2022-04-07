@@ -3,14 +3,14 @@
 #include "src/gpu_match.cuh"
 
 using namespace std;
-using namespace libra;
+using namespace STMatch;
 
 int main(int argc, char* argv[]) {
 
   cudaSetDevice(0);
 
-  libra::GraphPreprocessor g(argv[1]);
-  libra::PatternPreprocessor p(argv[2]);
+  STMatch::GraphPreprocessor g(argv[1]);
+  STMatch::PatternPreprocessor p(argv[2]);
 
   // copy graph and pattern to GPU global memory
   Graph* gpu_graph = g.to_gpu();

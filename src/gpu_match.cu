@@ -3,7 +3,7 @@
 
 #define UNROLL_SIZE(l) (l > 0 ? UNROLL: 1) 
 
-namespace libra {
+namespace STMatch {
   struct StealingArgs {
     int* idle_warps;
     int* idle_warps_count;

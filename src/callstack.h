@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include "config.h"
 
-namespace libra {
+namespace STMatch {
 
    typedef struct {
     graph_node_t iter[PAT_SIZE];

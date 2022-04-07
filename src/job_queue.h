@@ -2,7 +2,7 @@
 
 #include "graph.h"
 
-namespace libra {
+namespace STMatch {
 
   typedef struct {
     graph_node_t nodes[PAT_SIZE];

@@ -1,10 +1,10 @@
-# Libra: a load-balancing graph mining system 
+# STMatch: a load-balancing graph mining system 
 
 ## Overview
 
-Libra is a general-purpose system for subgraph pattern matching. 
+STMatch is a general-purpose system for subgraph pattern matching. 
 
-## Building Libra
+## Building STMatch
 
 ### Data Preparation
 
@@ -28,7 +28,7 @@ Now you can see some directories in ~/project/dara/bin_graph/
 #it's like "com-amazon.ungraph  com-dblp.ungraph  com-youtube.ungraph  email-Enron  wiki-Vote"
 ```
 
-### Compile Libra
+### Compile STMatch
 Configure the prograpm
 ```Shell
 #You should configure src/config.h file before you compile. 
@@ -39,13 +39,13 @@ Configure the prograpm
 vim src/config.h
 ```
 
-Go to the home directory of Libra
+Go to the home directory of STMatch
 ```Shell
 make clean
 make
 ```
 
-## Test Libra
+## Test STMatch
 
 We provide a shell script for batch testing. You can use our script to test directly,
 

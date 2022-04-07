@@ -10,7 +10,7 @@
 #include "config.h"
 
 
-namespace libra {
+namespace STMatch {
 
   typedef struct {
 
