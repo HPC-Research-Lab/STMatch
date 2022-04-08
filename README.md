@@ -39,9 +39,8 @@ Configure the program
 #you should set LABELED to be false and EDGE_INDUCED to be true in src/config.h, \
 #and then recompile the project
 
-#There are 3 variables you should take care of: LABELED, EDGE_INDUCED, JOB_CHUNK_SIZE. 
-#For testing graph amazon, set JOB_CHUNK_SIZE to be 64 could get the best performance. 
-#For testing all other graphs, set JOB_CHUNK_SIZE to be 8 could get the best performance. 
+#For more details about how to configure and reproduce the results in the paper, \
+#you can follow the instructions at the bottom of README.md
 vim src/config.h
 ```
 
