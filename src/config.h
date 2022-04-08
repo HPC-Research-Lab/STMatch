@@ -12,7 +12,7 @@ namespace STMatch {
   inline constexpr size_t GRAPH_DEGREE = 4096;
   inline constexpr size_t MAX_SLOT_NUM = 15;
 
-  inline constexpr bool LABELED = true;
+  inline constexpr bool LABELED = false;
   inline constexpr bool EDGE_INDUCED = true;
 
   inline constexpr int GRID_DIM = 82;
