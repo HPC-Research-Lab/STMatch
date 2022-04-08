@@ -52,7 +52,7 @@ make
 
 ## Test STMatch
 
-We provide a shell script for batched test, or you can the commandline to test a specific pattern and graph directly.
+We provide a shell script for batched test, or you can input the command to test a specific pattern and graph directly.
 We also provide the instructions about how to reproduce the result of Table III, Table IV and Figure 10 in the paper. 
 
 ### Run batched test
@@ -124,10 +124,10 @@ bash batch_test.sh ./data/bin_graph/com-youtube.ungraph/
 bash batch_test.sh ./data/bin_graph/mico/  
 bash batch_test.sh ./data/bin_graph/soc-LiveJournal1/ 
 
-#Before running the following test, 
-#uncomment the links of Orkut and FriendSter in graph_converter/prepare_data.sh, \
+#Before running the following test, \
+# uncomment the links of Orkut and FriendSter in graph_converter/prepare_data.sh, \
 # and download and convert them by executing bash prepare_data.sh under graph_converter directory. 
-# It will take you about 1~2 hours and 50GB disk space to get the graph data. 
+#It will take you about 1~2 hours and 50GB disk space to get the graph data. 
 bash batch_test.sh ./data/bin_graph/com-orkut.ungraph/        
 bash batch_test.sh ./data/bin_graph/com-friendster.ungraph/    
 ```
