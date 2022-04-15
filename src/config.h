@@ -3,7 +3,7 @@
 namespace STMatch {
 
   typedef int graph_node_t;
-  typedef unsigned long graph_edge_t;
+  typedef long graph_edge_t;
   typedef char pattern_node_t;
   typedef char set_op_t;
   typedef unsigned int bitarray32;

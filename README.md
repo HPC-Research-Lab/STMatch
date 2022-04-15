@@ -128,6 +128,9 @@ bash batch_test.sh ./data/bin_graph/soc-LiveJournal1/
 # uncomment the links of Orkut and FriendSter in graph_converter/prepare_data.sh, \
 # and download and convert them by executing bash prepare_data.sh under graph_converter directory. 
 #It will take you about 1~2 hours and 50GB disk space to get the graph data. 
+#IMPORTANT: When you test graph friendster, you should make a change in line 6 in file src/config.h
+#Changing line 6 in file src/config.h fron "typedef long graph_edge_t;" to "typedef unsigned long graph_edge_t;"
+#Then re-make the program.
 bash batch_test.sh ./data/bin_graph/com-orkut.ungraph/        
 bash batch_test.sh ./data/bin_graph/com-friendster.ungraph/    
 ```
