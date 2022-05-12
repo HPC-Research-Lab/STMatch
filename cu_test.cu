@@ -5,6 +5,60 @@
 using namespace std;
 using namespace STMatch;
 
+void printfProfile(ProfInfo& profile){
+  for(int i=0; i<1; i++){
+    long long int max = 0;
+    long long int total = 0; 
+    for(int j=0; j<BLOCK_DIM; j+=WARP_SIZE){
+      total+= profile.clk[i][j];
+      if(profile.clk[i][j]>max) max = profile.clk[i][j];
+      //printf("%lld\n", profile.clk[i][j]);
+    }
+    printf("clk:\t%f\t%lld\t", (double)total/(double)NWARPS_PER_BLOCK, max);
+  }
+
+  for(int i=0; i<1; i++){
+    size_t total = 0;
+    for(int j=0; j<NWARPS_PER_BLOCK; j++){
+      total+=profile.localMemStorage[i][j];
+      //printf("%lld\n", profile.clk[i][j]);
+    }
+    printf("%lu\t", total);
+  }
+
+
+
+  uint64_t totalThreadUsed = 0;
+  uint64_t busyThreadUsed = 0;
+  for(int i=0; i<GRID_DIM; i++){
+    for(int j=0; j<NWARPS_PER_BLOCK; j++){
+      totalThreadUsed+=profile.totalThreadUsed[i][j];
+      busyThreadUsed+=profile.busyThreadUsed[i][j];
+    }
+  }
+   printf("%f\n", (double)busyThreadUsed/(double)totalThreadUsed);
+
+  //------------------Global-----------
+
+  double gridTotal = 0;
+  double gridMax = 0;
+  for(int i=0; i<GRID_DIM; i++){
+    long long int blockTotal = 0; 
+    for(int j=0; j<BLOCK_DIM; j+=WARP_SIZE){
+        blockTotal+= profile.clk[i][j];
+    }
+    double blockAvg = (double)blockTotal/NWARPS_PER_BLOCK;
+
+    gridTotal+=blockAvg;
+    if(blockAvg>gridMax) gridMax = blockAvg;
+  }
+  double gridAvg = gridTotal/GRID_DIM;
+  //printf("%f\t%f\n", gridAvg, gridMax);
+
+
+}
+
+
 int main(int argc, char* argv[]) {
 
   cudaSetDevice(0);
@@ -55,6 +109,11 @@ int main(int argc, char* argv[]) {
   cudaMalloc(&stk_valid, sizeof(bool) * GRID_DIM);
   cudaMemset(stk_valid, 0, sizeof(bool) * GRID_DIM);
 
+  ProfInfo* prof_info;
+  cudaMalloc(&prof_info, sizeof(ProfInfo));
+  cudaMemset(prof_info, 0, sizeof(ProfInfo));
+
+
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
@@ -63,7 +122,7 @@ int main(int argc, char* argv[]) {
 
   //cout << "shared memory usage: " << sizeof(Graph) << " " << sizeof(Pattern) << " " << sizeof(JobQueue) << " " << sizeof(CallStack) * NWARPS_PER_BLOCK << " " << NWARPS_PER_BLOCK * 33 * sizeof(int) << " Bytes" << endl;
 
-  _parallel_match << <GRID_DIM, BLOCK_DIM >> > (gpu_graph, gpu_pattern, gpu_callstack, gpu_queue, gpu_res, idle_warps, idle_warps_count, global_mutex);
+  _parallel_match << <GRID_DIM, BLOCK_DIM >> > (gpu_graph, gpu_pattern, gpu_callstack, gpu_queue, gpu_res, idle_warps, idle_warps_count, global_mutex, prof_info);
 
 
   cudaEventRecord(stop);
@@ -76,9 +135,15 @@ int main(int argc, char* argv[]) {
 
   cudaMemcpy(res, gpu_res, sizeof(size_t) * NWARPS_TOTAL, cudaMemcpyDeviceToHost);
 
+
+  ProfInfo cpuProfInfo;
+  cudaMemcpy(&cpuProfInfo, prof_info, sizeof(ProfInfo), cudaMemcpyDeviceToHost);
+
+  printfProfile(cpuProfInfo);
+
   size_t tot_count = 0;
   for (int i=0; i<NWARPS_TOTAL; i++) tot_count += res[i];
-  printf("%s\t%f\t%lu\n", argv[2], milliseconds, tot_count);
+  //printf("%s\t%f\t%lu\n", argv[2], milliseconds, tot_count);
   //cout << "count: " << tot_count << endl;
   return 0;
 }

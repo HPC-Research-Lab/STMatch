@@ -15,6 +15,16 @@ namespace STMatch {
     pattern_node_t level;
   } CallStack;
 
+  typedef struct {
+    long long int clk[GRID_DIM][BLOCK_DIM];
+    size_t localMemStorage[GRID_DIM][NWARPS_PER_BLOCK];
+    size_t globalMemStk[GRID_DIM][NWARPS_PER_BLOCK];
+    size_t globalMemStorage[GRID_DIM][NWARPS_PER_BLOCK];
+    uint64_t busyThreadUsed[GRID_DIM][NWARPS_PER_BLOCK];
+    uint64_t totalThreadUsed[GRID_DIM][NWARPS_PER_BLOCK];
+
+  }ProfInfo;
+
 /*
   void init() {
     memset(path, 0, sizeof(path));

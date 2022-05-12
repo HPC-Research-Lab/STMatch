@@ -3,7 +3,11 @@
 
 #define UNROLL_SIZE(l) (l > 0 ? UNROLL: 1) 
 
+
+
 namespace STMatch {
+  __device__ ProfInfo* profPtr;
+
   struct StealingArgs {
     int* idle_warps;
     int* idle_warps_count;
@@ -271,6 +275,11 @@ namespace STMatch {
     int slot_idx = 0;
     int offset = 0;
     int predicate;
+
+    if(tid==0 && size_psum[wid][WARP_SIZE]>0){
+        profPtr->busyThreadUsed[blockIdx.x][wid] += size_psum[wid][WARP_SIZE];
+        profPtr->totalThreadUsed[blockIdx.x][wid] += (((size_psum[wid][WARP_SIZE] - 1) / WARP_SIZE + 1) * WARP_SIZE);
+    }    
 
     for (int idx = tid; (idx < ((size_psum[wid][WARP_SIZE] > 0) ? (((size_psum[wid][WARP_SIZE] - 1) / WARP_SIZE + 1) * WARP_SIZE) : 0) && still_loop); idx += WARP_SIZE) {
       predicate = 0;
@@ -630,10 +639,32 @@ namespace STMatch {
   }
 
 
+__device__ void getTransferedSlotSize(CallStack& stk, Pattern* _pat, bool isLocal){
+
+    int _k = stk.level-1;
+    
+    size_t transferedSlotStorageSize = 0;
+    for (int r = _pat->rowptr[_k]; r < _pat->rowptr[_k + 1]; r++) {
+      for (int u = 0; u < UNROLL_SIZE(_k); u++) {
+        int loop_end = _k == 0 ? JOB_CHUNK_SIZE * 2 : stk.slot_size[r][u];
+        transferedSlotStorageSize+=loop_end*sizeof(graph_node_t);
+      }
+    }
+
+    if(isLocal){
+        profPtr->localMemStorage[blockIdx.x][threadIdx.x/WARP_SIZE] += transferedSlotStorageSize;
+    }
+    else{
+       profPtr->globalMemStorage[blockIdx.x][threadIdx.x/WARP_SIZE] += transferedSlotStorageSize;
+       profPtr->globalMemStk[blockIdx.x][threadIdx.x/WARP_SIZE] += sizeof(CallStack)*2;
+    }
+}
 
   __global__ void _parallel_match(Graph* dev_graph, Pattern* dev_pattern,
     CallStack* dev_callstack, JobQueue* job_queue, size_t* res,
-    int* idle_warps, int* idle_warps_count, int* global_mutex) {
+    int* idle_warps, int* idle_warps_count, int* global_mutex, ProfInfo* prof_info) {
+
+    profPtr = prof_info;
     __shared__ Graph graph;
     __shared__ Pattern pat;
     __shared__ CallStack stk[NWARPS_PER_BLOCK];
@@ -664,7 +695,7 @@ namespace STMatch {
     }
     __syncwarp();
 
-    auto start = clock64();
+    clock_t start = clock64();
 
     while (true) {
       match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid], &stealing_args);
@@ -676,11 +707,13 @@ namespace STMatch {
 
         if (threadIdx.x % WARP_SIZE == 0) {
           stealed[local_wid] = trans_skt(stk, &stk[local_wid], &pat, &stealing_args);
+          getTransferedSlotSize(stk[local_wid], &pat, true);
         }
         __syncwarp();
       }
 
       if (STEAL_ACROSS_BLOCK) {
+        
         if (!stealed[local_wid]) {
 
           __syncthreads();
@@ -697,11 +730,13 @@ namespace STMatch {
 
             while ((atomicAdd(stealing_args.idle_warps_count, 0) < NWARPS_TOTAL) && (atomicAdd(&stealing_args.idle_warps[blockIdx.x], 0) & (1 << local_wid)));
 
+           
             if (atomicAdd(stealing_args.idle_warps_count, 0) < NWARPS_TOTAL) {
-
+               printf("Global Stealed\n");
               __threadfence();
               if (local_wid == 0) {
                 stk[local_wid] = (stealing_args.global_callstack[blockIdx.x * NWARPS_PER_BLOCK]);
+                getTransferedSlotSize(stk[local_wid], &pat, false);
               }
               stealed[local_wid] = true;
             }
@@ -718,15 +753,15 @@ namespace STMatch {
       }
     }
 
-    auto stop = clock64();
+    clock_t stop = clock64();
 
     if (threadIdx.x % WARP_SIZE == 0) {
       res[global_wid] = count[local_wid];
-      // printf("%d\t%ld\t%d\t%d\n", blockIdx.x, stop - start, stealed[local_wid], local_wid);
-      //printf("%ld\n", stop - start);
+      //res[global_wid] = stop - start;
+       //printf("%d\t%ld\t%d\t%d\n", blockIdx.x, stop - start, stealed[local_wid], local_wid);
+       //printf("%lld\n", stop-start);
     }
 
-    // if(threadIdx.x % WARP_SIZE == 0)
-    //   printf("%d\t%d\t%d\n", blockIdx.x, local_wid, mutex_this_block[local_wid]);
-  }
+    profPtr->clk[blockIdx.x][threadIdx.x] = stop - start;
+    }
 }
