@@ -72,7 +72,7 @@ It will only print out one line for the input pattern.
 ./cu_test /path/to/converted/graph/directory/snap.txt /path/to/pattern/file/
 ```
 
-### Reproducing the results of Table III (a)
+### Reproducing the results of Table II (a)
 ```Shell
 #1. Configure src/config.h 
 #set LABELED = false,  EDGE_INDUCED = true, UNROLL = 8, \
@@ -89,7 +89,7 @@ bash batch_test.sh ./data/bin_graph/email-Enron/
 bash batch_test.sh ./data/bin_graph/mico/ 
 ```
 
-### Reproducing the results of Table III (b)
+### Reproducing the results of Table II (b)
 ```Shell
 #1. Configure src/config.h 
 #set LABELED = false,  EDGE_INDUCED = false, UNROLL = 8, \
@@ -106,7 +106,7 @@ bash batch_test.sh ./data/bin_graph/email-Enron/
 bash batch_test.sh ./data/bin_graph/mico/  
 ```
 
-### Reproducing the results of Table IV
+### Reproducing the results of Table III
 ```Shell
 #1. Configure src/config.h 
 #set LABELED = true,  EDGE_INDUCED = true, UNROLL = 8, \
@@ -135,7 +135,7 @@ bash batch_test.sh ./data/bin_graph/com-orkut.ungraph/
 bash batch_test.sh ./data/bin_graph/com-friendster.ungraph/    
 ```
 
-### Reproducing the results of Figure 10
+### Reproducing the results of Figure 12
 ```Shell
 #1. Configure src/config.h 
 #For naive:
