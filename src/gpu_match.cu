@@ -3,10 +3,8 @@
 
 #define UNROLL_SIZE(l) (l > 0 ? UNROLL: 1) 
 
-
-
 namespace STMatch {
-  __device__ ProfInfo* profPtr;
+  __device__ int gpuIdx;
 
   struct StealingArgs {
     int* idle_warps;
@@ -276,10 +274,10 @@ namespace STMatch {
     int offset = 0;
     int predicate;
 
-    if(tid==0 && size_psum[wid][WARP_SIZE]>0){
-        profPtr->busyThreadUsed[blockIdx.x][wid] += size_psum[wid][WARP_SIZE];
-        profPtr->totalThreadUsed[blockIdx.x][wid] += (((size_psum[wid][WARP_SIZE] - 1) / WARP_SIZE + 1) * WARP_SIZE);
-    }    
+    //if(tid==0 && size_psum[wid][WARP_SIZE]>0){
+    //    profPtr->busyThreadUsed[blockIdx.x][wid] += size_psum[wid][WARP_SIZE];
+    //    profPtr->totalThreadUsed[blockIdx.x][wid] += (((size_psum[wid][WARP_SIZE] - 1) / WARP_SIZE + 1) * WARP_SIZE);
+    //}    
 
     for (int idx = tid; (idx < ((size_psum[wid][WARP_SIZE] > 0) ? (((size_psum[wid][WARP_SIZE] - 1) / WARP_SIZE + 1) * WARP_SIZE) : 0) && still_loop); idx += WARP_SIZE) {
       predicate = 0;
@@ -639,6 +637,7 @@ namespace STMatch {
   }
 
 
+/*
 __device__ void getTransferedSlotSize(CallStack& stk, Pattern* _pat, bool isLocal){
 
     int _k = stk.level-1;
@@ -660,11 +659,13 @@ __device__ void getTransferedSlotSize(CallStack& stk, Pattern* _pat, bool isLoca
     }
 }
 
+*/
+
   __global__ void _parallel_match(Graph* dev_graph, Pattern* dev_pattern,
     CallStack* dev_callstack, JobQueue* job_queue, size_t* res,
-    int* idle_warps, int* idle_warps_count, int* global_mutex, ProfInfo* prof_info) {
-
-    profPtr = prof_info;
+    int* idle_warps, int* idle_warps_count, int* global_mutex, int gpu_idx) 
+  {
+    gpuIdx = gpu_idx;
     __shared__ Graph graph;
     __shared__ Pattern pat;
     __shared__ CallStack stk[NWARPS_PER_BLOCK];
@@ -683,6 +684,7 @@ __device__ void getTransferedSlotSize(CallStack& stk, Pattern* _pat, bool isLoca
     int global_wid = global_tid / WARP_SIZE;
     int local_wid = threadIdx.x / WARP_SIZE;
 
+    //if(global_tid==0) printf("gpu:%d, cur:%d, length:%d, end:%d\n", gpu_idx, job_queue->cur, job_queue->length, job_queue->cur+job_queue->length);
     if (threadIdx.x == 0) {
       graph = *dev_graph;
       pat = *dev_pattern;
@@ -695,7 +697,7 @@ __device__ void getTransferedSlotSize(CallStack& stk, Pattern* _pat, bool isLoca
     }
     __syncwarp();
 
-    clock_t start = clock64();
+    auto start = clock64();
 
     while (true) {
       match(&graph, &pat, &stk[local_wid], job_queue, &count[local_wid], &stealing_args);
@@ -707,7 +709,7 @@ __device__ void getTransferedSlotSize(CallStack& stk, Pattern* _pat, bool isLoca
 
         if (threadIdx.x % WARP_SIZE == 0) {
           stealed[local_wid] = trans_skt(stk, &stk[local_wid], &pat, &stealing_args);
-          getTransferedSlotSize(stk[local_wid], &pat, true);
+          //getTransferedSlotSize(stk[local_wid], &pat, true);
         }
         __syncwarp();
       }
@@ -732,11 +734,11 @@ __device__ void getTransferedSlotSize(CallStack& stk, Pattern* _pat, bool isLoca
 
            
             if (atomicAdd(stealing_args.idle_warps_count, 0) < NWARPS_TOTAL) {
-               printf("Global Stealed\n");
+              //printf("Global Stealed\n");
               __threadfence();
               if (local_wid == 0) {
                 stk[local_wid] = (stealing_args.global_callstack[blockIdx.x * NWARPS_PER_BLOCK]);
-                getTransferedSlotSize(stk[local_wid], &pat, false);
+               // getTransferedSlotSize(stk[local_wid], &pat, false);
               }
               stealed[local_wid] = true;
             }
@@ -753,7 +755,7 @@ __device__ void getTransferedSlotSize(CallStack& stk, Pattern* _pat, bool isLoca
       }
     }
 
-    clock_t stop = clock64();
+    auto stop = clock64();
 
     if (threadIdx.x % WARP_SIZE == 0) {
       res[global_wid] = count[local_wid];
@@ -761,7 +763,10 @@ __device__ void getTransferedSlotSize(CallStack& stk, Pattern* _pat, bool isLoca
        //printf("%d\t%ld\t%d\t%d\n", blockIdx.x, stop - start, stealed[local_wid], local_wid);
        //printf("%lld\n", stop-start);
     }
-
-    profPtr->clk[blockIdx.x][threadIdx.x] = stop - start;
-    }
+   // __syncwarp();
+    //profPtr->clk[blockIdx.x][threadIdx.x] = stop - start;
+  //if(global_tid==0){
+  //  printf("%d gpu finished\n", gpu_idx);
+ // }
+  }
 }
