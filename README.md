@@ -1,7 +1,7 @@
 ## Overview
 STMatch is a stack-based subgraph pattern matching system on GPU. 
 
-## Build STMatch
+## Test on Distributed GPUs. 
 
 ### Data Preparation
 
@@ -72,87 +72,20 @@ It will only print out one line for the input pattern.
 ./cu_test /path/to/converted/graph/directory/snap.txt /path/to/pattern/file/
 ```
 
-### Reproducing the results of Table III (a)
+### Reproducing the results of Figure 11
 ```Shell
 #1. Configure src/config.h 
-#set LABELED = false,  EDGE_INDUCED = true, UNROLL = 8, \
-#STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = true 
-vim src/config.h 
-
-#2. Recompile the program. First make clean please. 
-make clean
-make
-
-#3. Run batched test script and specify a test graph in command line.
-bash batch_test.sh ./data/bin_graph/wiki-Vote/ 
-bash batch_test.sh ./data/bin_graph/email-Enron/ 
-bash batch_test.sh ./data/bin_graph/mico/ 
-```
-
-### Reproducing the results of Table III (b)
-```Shell
-#1. Configure src/config.h 
-#set LABELED = false,  EDGE_INDUCED = false, UNROLL = 8, \
-#STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = true 
-vim src/config.h 
-
-#2. Recompile the program. First make clean please. 
-make clean
-make
-
-#3. Run batched test script and specify a test graph in command line.
-bash batch_test.sh ./data/bin_graph/wiki-Vote/   
-bash batch_test.sh ./data/bin_graph/email-Enron/ 
-bash batch_test.sh ./data/bin_graph/mico/  
-```
-
-### Reproducing the results of Table IV
-```Shell
-#1. Configure src/config.h 
-#set LABELED = true,  EDGE_INDUCED = true, UNROLL = 8, \
-#STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = true 
-vim src/config.h 
-
-#2. Recompile the program. First make clean please. 
-make clean
-make
-
-#3. Run batched test script and specify a test graph in command line.
-bash batch_test.sh ./data/bin_graph/wiki-Vote/ 
-bash batch_test.sh ./data/bin_graph/email-Enron/ 
-bash batch_test.sh ./data/bin_graph/com-youtube.ungraph/  
-bash batch_test.sh ./data/bin_graph/mico/  
-bash batch_test.sh ./data/bin_graph/soc-LiveJournal1/ 
-
-#Before running the following test, \
-# uncomment the links of Orkut and FriendSter in graph_converter/prepare_data.sh, \
-# and download and convert them by executing bash prepare_data.sh under graph_converter directory. 
-#It will take you about 1~2 hours and 50GB disk space to get the graph data. 
-#IMPORTANT: When you test graph friendster, you should make a change in line 6 in file src/config.h
-#Changing line 6 in file src/config.h from "typedef long graph_edge_t;" to "typedef unsigned long graph_edge_t;"
-#Then re-make the program.
-bash batch_test.sh ./data/bin_graph/com-orkut.ungraph/        
-bash batch_test.sh ./data/bin_graph/com-friendster.ungraph/    
-```
-
-### Reproducing the results of Figure 10
-```Shell
-#1. Configure src/config.h 
-#For naive:
-#set LABELED = true,  EDGE_INDUCED = true, UNROLL = 1, \
-#STEAL_IN_BLOCK = false, STEAL_ACROSS_BLOCK = false 
-
-#For localsteal:
-#set LABELED = true,  EDGE_INDUCED = true, UNROLL = 1, \
+#For 1 GPU:
+#set NUM_GPU=1 LABELED = true,  EDGE_INDUCED = true, UNROLL = 8, \
 #STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = false 
 
-#For local+globalsteal:
-#set LABELED = true,  EDGE_INDUCED = true, UNROLL = 1, \
-#STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = true 
+#For 2 GPU:
+#set NUM_GPU=2 LABELED = true,  EDGE_INDUCED = true, UNROLL = 8, \
+#STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = false 
 
-#For unroll+local+globalsteal:
-#set LABELED = true,  EDGE_INDUCED = true, UNROLL = 8, \
-#STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = true 
+#For 4 GPU:
+#set NUM_GPU=4 LABELED = true,  EDGE_INDUCED = true, UNROLL = 8, \
+#STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = false 
 vim src/config.h 
 
 #2. Recompile the program. First make clean please. 
@@ -160,8 +93,6 @@ make clean
 make
 
 #3. Run batched test script and specify a test graph in command line.
-bash batch_test.sh ./data/bin_graph/email-Enron/
-bash batch_test.sh ./data/bin_graph/com-youtube.ungraph/
-bash batch_test.sh ./data/bin_graph/mico/ 
+bash batch_test.sh ./data/bin_graph/com-orkut.ungraph/ 
 bash batch_test.sh ./data/bin_graph/soc-LiveJournal1/ 
 ```
