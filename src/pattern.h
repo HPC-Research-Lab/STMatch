@@ -29,6 +29,7 @@ namespace STMatch {
 
     Pattern pat;
 
+    int PatternMultiplicity;
     int adj_matrix_[PAT_SIZE][PAT_SIZE];
     int vertex_order_[PAT_SIZE];
     int order_map_[PAT_SIZE];
@@ -262,6 +263,8 @@ namespace STMatch {
         if (valid)
           valid_permute.push_back(pp);
       }
+
+      PatternMultiplicity = valid_permute.size();
 
       L_adj_matrix_.resize(pat.nnodes, std::vector<int>(pat.nnodes, 0));
       std::set<std::pair<int, int>> L;

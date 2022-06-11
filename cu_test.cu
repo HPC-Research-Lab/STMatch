@@ -76,9 +76,12 @@ int main(int argc, char* argv[]) {
 
   cudaMemcpy(res, gpu_res, sizeof(size_t) * NWARPS_TOTAL, cudaMemcpyDeviceToHost);
 
-  size_t tot_count = 0;
+  unsigned long long tot_count = 0;
   for (int i=0; i<NWARPS_TOTAL; i++) tot_count += res[i];
-  printf("%s\t%f\t%lu\n", argv[2], milliseconds, tot_count);
+
+  if(!LABELED) tot_count = tot_count * p.PatternMultiplicity;
+  
+  printf("%s\t%f\t%llu\n", argv[2], milliseconds, tot_count);
   //cout << "count: " << tot_count << endl;
   return 0;
 }
