@@ -141,7 +141,7 @@ int main(int argc, char* argv[]) {
 
 
   float maxGPU = 0;
-  uint64_t finalCount =0;
+  unsigned long long finalCount =0;
   for(int i=0; i<NUM_GPU; i++) {
     cudaMemcpy(res, gpu_res[i], sizeof(size_t) * NWARPS_TOTAL, cudaMemcpyDeviceToHost);
     size_t tot_count = 0;
@@ -153,7 +153,9 @@ int main(int argc, char* argv[]) {
 
     //printf("%f\t", milliseconds[i]);
   }
-  printf("%f\t%lu\n", maxGPU, finalCount);
+
+  if(!LABELED) finalCount = finalCount * p.PatternMultiplicity;
+  printf("%f\t%llu\n", maxGPU, finalCount);
 
   return 0;
 }
