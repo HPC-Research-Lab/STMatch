@@ -158,6 +158,14 @@ namespace STMatch {
     }
   }
 
+  __forceinline__ __device__ graph_node_t* path_address(CallStack* stk, Pattern* pat, int level, int k) {
+    if (level > 0)
+      return &(stk->slot_storage[pat->rowptr[level]][stk->uiter[level]][stk->iter[level] + k]);
+    else {
+      return &(stk->slot_storage[0][stk->uiter[0]][stk->iter[0] + k + (level + 1) * JOB_CHUNK_SIZE]);
+    }
+  }
+
   typedef struct {
     graph_node_t* set1[UNROLL], * set2[UNROLL], * res[UNROLL];
     graph_node_t set1_size[UNROLL], set2_size[UNROLL], * res_size[UNROLL];
@@ -403,12 +411,10 @@ namespace STMatch {
         arg[wid].label = pat->slot_labels[i];
 
         if (pat->set_ops[i] & 0x20) {
-
           for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
 
             arg[wid].set2[k] = NULL;
             arg[wid].set2_size[k] = 0;
-
             if (!EDGE_INDUCED) {
               graph_node_t t = path(stk, pat, level - 2, ((level > 1) ? stk->uiter[level - 1] : k));
               arg[wid].set2[k] = &g->colidx[g->rowptr[t]];
@@ -424,6 +430,42 @@ namespace STMatch {
           arg[wid].level = level;
           arg[wid].pat = pat;
           compute_set<true>(&arg[wid]);
+
+          if(EDGE_INDUCED && !LABELED){
+            for (int j = level-1; j >= -1; j--)
+            {
+              int unrollIdx = threadIdx.x % WARP_SIZE;
+              if(unrollIdx < arg[wid].num_sets)
+              {
+                if(level==1){
+                  arg[wid].set2[unrollIdx] = path_address(stk, pat, j, unrollIdx);
+                }
+                else{
+                  if(j==level-1){
+                    arg[wid].set2[unrollIdx] = path_address(stk, pat, j, unrollIdx);
+                    arg[wid].set2_size[unrollIdx] = 1;
+                  }
+                  else{
+                    if(j>0){
+                      arg[wid].set2[unrollIdx] = path_address(stk, pat, j, stk->uiter[j + 1]);
+                    }
+                    else{
+                      arg[wid].set2[unrollIdx] = path_address(stk, pat, j, stk->uiter[1]);
+                    }
+                  }
+                }
+                arg[wid].set1[unrollIdx] = &(stk->slot_storage[i][unrollIdx][0]);
+                arg[wid].res[unrollIdx] = &(stk->slot_storage[i][unrollIdx][0]);
+                arg[wid].set1_size[unrollIdx] = stk->slot_size[i][unrollIdx];
+                arg[wid].res_size[unrollIdx] = &(stk->slot_size[i][unrollIdx]);
+                arg[wid].set2_size[unrollIdx] = 1;
+                arg[wid].level = level;
+                arg[wid].pat = pat;
+              }
+              __syncwarp();
+              compute_set<true>(&arg[wid]);
+            }
+          }
 
           if (!EDGE_INDUCED) {
             for (pattern_node_t j = level - 3; j >= -1; j--) {
@@ -449,7 +491,8 @@ namespace STMatch {
 
           pattern_node_t slot_idx = (pat->set_ops[i] & 0x1F);
 
-          if (pat->set_ops[i] & 0x40) {
+          if (pat->set_ops[i] & 0x40) { //INTE
+            
             for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
               graph_node_t t = path(stk, pat, level - 1, k);
               graph_node_t* neighbor = &g->colidx[g->rowptr[t]];
@@ -475,13 +518,16 @@ namespace STMatch {
             arg[wid].pat = pat;
             compute_set<false>(&arg[wid]);
             for (graph_node_t k = arg[wid].num_sets; k < UNROLL_SIZE(level); k++) stk->slot_size[i][k] = 0;
-
           }
-          else {
+          else { //DIFF
 
             for (graph_node_t k = 0; k < arg[wid].num_sets; k++) {
               graph_node_t* neighbor = NULL;
               graph_node_t neighbor_size = 0;
+              if(EDGE_INDUCED && !LABELED){
+                neighbor = path_address(stk, pat, level - 1, k);
+                neighbor_size = 1;
+              }
               if (!EDGE_INDUCED) {
                 graph_node_t t = path(stk, pat, level - 1, k);
                 neighbor = &g->colidx[g->rowptr[t]];
@@ -616,6 +662,7 @@ namespace STMatch {
           __syncwarp();
           stk->slot_size[pat->rowptr[level]][j] = 0;
         }
+        stk->uiter[level] = 0;
         if (threadIdx.x % WARP_SIZE == 0)
           level--;
         if (threadIdx.x % WARP_SIZE == 0)
