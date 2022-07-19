@@ -12,8 +12,7 @@ namespace STMatch {
   inline constexpr size_t GRAPH_DEGREE = 4096;
   inline constexpr size_t MAX_SLOT_NUM = 15;
 
-  inline constexpr bool LABELED = false;
-  inline constexpr bool EDGE_INDUCED = true;
+#include "config_for_ae/fig_local_global_unroll.h" 
 
   inline constexpr int GRID_DIM = 82;
   inline constexpr int BLOCK_DIM = 1024;
@@ -25,10 +24,7 @@ namespace STMatch {
   //static_assert(2 * JOB_CHUNK_SIZE <= GRAPH_DEGREE); 
 
   // this is the maximum unroll size
-  inline constexpr int UNROLL = 8;
 
-  inline constexpr bool STEAL_IN_BLOCK = true;
-  inline constexpr bool STEAL_ACROSS_BLOCK = false;
   inline constexpr int DETECT_LEVEL = 1;
   inline constexpr int STOP_LEVEL = 2;
 }

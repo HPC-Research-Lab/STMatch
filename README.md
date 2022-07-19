@@ -28,101 +28,44 @@ Now you can see some directories in ~/project/dara/bin_graph/
 ```
 
 ### Compile STMatch
-Configure the program
-```Shell
-#You should configure file src/config.h before you compile the project. 
-#There are 4 types of subgraph matching: 
-#labeled/vertex-induced, unlabeled/vertex-induced, labeled/edge-induced, unlabeled/edge-induced
-
-#For example:
-#If you need to test unlabeled and edge-induced subgraph matching,  \
-#you should set LABELED to be false and EDGE_INDUCED to be true in src/config.h, \
-#and then recompile the project
-
-#For more details about how to configure and reproduce the results in the paper, \
-#you can follow the instructions at the bottom of README.md
-vim src/config.h
-```
-
 Go to home directory of STMatch and compile the project
 ```Shell
 make clean
+#Be careful, don't use make's multi-threads execution like make -j 16. 
 make
 ```
+Now you can see 7 executable files ending with .exe in ./bin directory. 
+
 
 ## Test STMatch
 
-We provide a shell script for batched test, or you can input the command to test a specific pattern and graph directly.
+We provide some shell scripts for batched test, or you can input the command to test a specific pattern and graph directly.
 We also provide the instructions about how to reproduce the result of Table III, Table IV and Figure 10 in the paper. 
 
-### Run batched test
-Batched test could test all given patterns for one input graph by executing a shell script. 
-It will print out 24 lines for 24 given patterns in ./data/pattern/ directory. 
+### Reproducing the results of Table III (a)
 ```Shell
-#For example, if you neet to test graph wiki-Vote, you should execute bash batch_test.sh ./data/bin_graph/wiki-Vote/
-bash batch_test.sh  /path/to/converted/graph/directory/
+#Run batched test script and specify a test graph in command line.
+bash test_table3a.sh ./data/bin_graph/wiki-Vote/ 
+bash test_table3a.sh ./data/bin_graph/email-Enron/ 
+bash test_table3a.sh ./data/bin_graph/mico/ 
 ```
 
-### Run single test
-Single test could test one specific pattern for one input graph.
-It will only print out one line for the input pattern. 
+### Reproducing the results of Table III (b)
 ```Shell
-#For example, if you need to test graph Enron and pattern 1.g, 
-# you should execute ./cu_test ./data/bin_graph/email-Enron/snap.txt ./data/pattern/1.g 
-./cu_test /path/to/converted/graph/directory/snap.txt /path/to/pattern/file/
+#Run batched test script and specify a test graph in command line.
+bash test_table3b.sh ./data/bin_graph/wiki-Vote/   
+bash test_table3b.sh ./data/bin_graph/email-Enron/ 
+bash test_table3b.sh ./data/bin_graph/mico/  
 ```
 
-### Reproducing the results of Table II (a)
+### Reproducing the results of Table IV
 ```Shell
-#1. Configure src/config.h 
-#set LABELED = false,  EDGE_INDUCED = true, UNROLL = 8, \
-#STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = true 
-vim src/config.h 
-
-#2. Recompile the program. First make clean please. 
-make clean
-make
-
-#3. Run batched test script and specify a test graph in command line.
-bash batch_test.sh ./data/bin_graph/wiki-Vote/ 
-bash batch_test.sh ./data/bin_graph/email-Enron/ 
-bash batch_test.sh ./data/bin_graph/mico/ 
-```
-
-### Reproducing the results of Table II (b)
-```Shell
-#1. Configure src/config.h 
-#set LABELED = false,  EDGE_INDUCED = false, UNROLL = 8, \
-#STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = true 
-vim src/config.h 
-
-#2. Recompile the program. First make clean please. 
-make clean
-make
-
-#3. Run batched test script and specify a test graph in command line.
-bash batch_test.sh ./data/bin_graph/wiki-Vote/   
-bash batch_test.sh ./data/bin_graph/email-Enron/ 
-bash batch_test.sh ./data/bin_graph/mico/  
-```
-
-### Reproducing the results of Table III
-```Shell
-#1. Configure src/config.h 
-#set LABELED = true,  EDGE_INDUCED = true, UNROLL = 8, \
-#STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = true 
-vim src/config.h 
-
-#2. Recompile the program. First make clean please. 
-make clean
-make
-
-#3. Run batched test script and specify a test graph in command line.
-bash batch_test.sh ./data/bin_graph/wiki-Vote/ 
-bash batch_test.sh ./data/bin_graph/email-Enron/ 
-bash batch_test.sh ./data/bin_graph/com-youtube.ungraph/  
-bash batch_test.sh ./data/bin_graph/mico/  
-bash batch_test.sh ./data/bin_graph/soc-LiveJournal1/ 
+#Run batched test script and specify a test graph in command line.
+bash test_table4.sh ./data/bin_graph/wiki-Vote/ 
+bash test_table4.sh ./data/bin_graph/email-Enron/ 
+bash test_table4.sh ./data/bin_graph/com-youtube.ungraph/  
+bash test_table4.sh ./data/bin_graph/mico/  
+bash test_table4.sh ./data/bin_graph/soc-LiveJournal1/ 
 
 #Before running the following test, \
 # uncomment the links of Orkut and FriendSter in graph_converter/prepare_data.sh, \
@@ -131,37 +74,33 @@ bash batch_test.sh ./data/bin_graph/soc-LiveJournal1/
 #IMPORTANT: When you test graph friendster, you should make a change in line 6 in file src/config.h
 #Changing line 6 in file src/config.h from "typedef long graph_edge_t;" to "typedef unsigned long graph_edge_t;"
 #Then re-make the program.
-bash batch_test.sh ./data/bin_graph/com-orkut.ungraph/        
-bash batch_test.sh ./data/bin_graph/com-friendster.ungraph/    
+bash test_table4.sh ./data/bin_graph/com-orkut.ungraph/        
+bash test_table4.sh ./data/bin_graph/com-friendster.ungraph/    
 ```
 
-### Reproducing the results of Figure 12
+### Reproducing the results of Figure 10
 ```Shell
-#1. Configure src/config.h 
-#For naive:
-#set LABELED = true,  EDGE_INDUCED = true, UNROLL = 1, \
-#STEAL_IN_BLOCK = false, STEAL_ACROSS_BLOCK = false 
+#Naive(Without Any Optimization) executions
+bash test_fig10_naive.sh ./data/bin_graph/email-Enron/
+bash test_fig10_naive.sh ./data/bin_graph/com-youtube.ungraph/
+bash test_fig10_naive.sh ./data/bin_graph/mico/ 
+bash test_fig10_naive.sh ./data/bin_graph/soc-LiveJournal1/ 
 
-#For localsteal:
-#set LABELED = true,  EDGE_INDUCED = true, UNROLL = 1, \
-#STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = false 
+#Local Work Stealing(With Only One Optimization) executions
+bash test_fig10_local.sh ./data/bin_graph/email-Enron/
+bash test_fig10_local.sh  ./data/bin_graph/com-youtube.ungraph/
+bash test_fig10_local.sh  ./data/bin_graph/mico/ 
+bash test_fig10_local.sh  ./data/bin_graph/soc-LiveJournal1/ 
 
-#For local+globalsteal:
-#set LABELED = true,  EDGE_INDUCED = true, UNROLL = 1, \
-#STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = true 
+#[Local Work Stealing]+[Global Work Stealing] (With Two Optimizations) executions
+bash test_fig10_local_global.sh ./data/bin_graph/email-Enron/
+bash test_fig10_local_global.sh ./data/bin_graph/com-youtube.ungraph/
+bash test_fig10_local_global.sh ./data/bin_graph/mico/ 
+bash test_fig10_local_global.sh ./data/bin_graph/soc-LiveJournal1/ 
 
-#For unroll+local+globalsteal:
-#set LABELED = true,  EDGE_INDUCED = true, UNROLL = 8, \
-#STEAL_IN_BLOCK = true, STEAL_ACROSS_BLOCK = true 
-vim src/config.h 
-
-#2. Recompile the program. First make clean please. 
-make clean
-make
-
-#3. Run batched test script and specify a test graph in command line.
-bash batch_test.sh ./data/bin_graph/email-Enron/
-bash batch_test.sh ./data/bin_graph/com-youtube.ungraph/
-bash batch_test.sh ./data/bin_graph/mico/ 
-bash batch_test.sh ./data/bin_graph/soc-LiveJournal1/ 
+#[Local Work Stealing]+[Global Work Stealing]+[Loop Unrolling] (With Three Optimizations) executions
+bash test_fig10_local_global_unroll8.sh ./data/bin_graph/email-Enron/
+bash test_fig10_local_global_unroll8.sh ./data/bin_graph/com-youtube.ungraph/
+bash test_fig10_local_global_unroll8.sh ./data/bin_graph/mico/ 
+bash test_fig10_local_global_unroll8.sh ./data/bin_graph/soc-LiveJournal1/ 
 ```
