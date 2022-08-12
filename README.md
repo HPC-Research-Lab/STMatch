@@ -42,6 +42,10 @@ Now you can see 7 executable files ending with .exe in ./bin directory.
 We provide some shell scripts for batched test, or you can input the command to test a specific pattern and graph directly.
 We also provide the instructions about how to reproduce the result of Table III, Table IV and Figure 10 in the paper. 
 
+Code and scripts for reproducing results of cuTS, GSI and Dryadic in Table 3a,  Table 3b and Table 4 are included in this repo:
+
+    https://github.com/yihuawei/SC2022Test
+
 ### Reproducing the results of Table III (a)
 ```Shell
 #Run batched test script and specify a test graph in command line.
