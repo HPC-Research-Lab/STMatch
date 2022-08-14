@@ -11,7 +11,7 @@ We target at a one-to-one mapping at a time, the query graph is small(vertices l
 
 ---
 
-## Reprooduce the results in table 4
+## Reproduce the results in table 4
 All the test graphs and patterns are uploaded to this repo. The only thing you need to do is to compile the program. 
     
     mkdir build
