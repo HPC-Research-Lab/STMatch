@@ -1,5 +1,3 @@
-# SC2022Test
-
 This repo contains the instructions for reproducing the results of Dryadic, CuTS, GSI in our experiments. 
 
 More specificlly, the CuTS directory contains the source code and scripts for reproducing the results of CuTS in Table ...
