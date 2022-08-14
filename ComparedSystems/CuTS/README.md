@@ -10,7 +10,7 @@ This repository contains the code for the "cuTS: Scaling Subgraph Isomorphism on
 We used `cmake 3.17.2`, `openmpi/3.0.1` and `CUDA 11.0`
 
     
-## Reprooduce the results in table 3a
+## Reproduce the results in table 3a
 All the test graphs and patterns are uploaded to this repo. The only thing you need to do is to compile the program. 
     
     mkdir build
