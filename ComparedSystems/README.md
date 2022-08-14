@@ -1,7 +1,14 @@
 # SC2022Test
 
-This repo contains the  instructions for reproducing the results of table IIIa IIIb IV for Dryadic, CuTS, GSI.
-They  are included in their directory respectively. 
+This repo contains the instructions for reproducing the results of Dryadic, CuTS, GSI in our experiments. 
+
+More specificlly, the CuTS directory contains the source code and scripts for reproducing the results of CuTS in Table ...
+
+The Dryadic directory contains four subdirectories. [describe each of directories...]. 
+
+The GSI directory contains the source code for reproducing the results of GSI in Table ...
+
+
 
 The following is the original links to CuTS and GSI. 
 Dryadic is not open sourced and we got dryadic from the authors. 
