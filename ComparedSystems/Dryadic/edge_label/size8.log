@@ -1,0 +1,19 @@
+nohup: ignoring input
+8_0.txt_li_best MiCo	1.60695e+06	171836878878
+8_1.txt_li_best MiCo	1.28593e+06	249342224482
+8_2.txt_li_best MiCo	1.46862e+06	296534780881
+8_3.txt_li_best MiCo	1.40905e+06	257694201863
+8_4.txt_li_best MiCo	2.25015e+06	286774317361
+8_5.txt_li_best MiCo	1.2514e+06	174268627606
+8_6.txt_li_best MiCo	3.87884e+06	276527163472
+8_7.txt_li_best MiCo	1.13597e+06	253932126684
+8_0.txt_li_best Orkut	76747.8	650418483
+8_1.txt_li_best Orkut	451653	10129974082
+8_2.txt_li_best Orkut	739565	10882139421
+8_3.txt_li_best Orkut	610724	12120450580
+8_4.txt_li_best Orkut	389630	10359100524
+8_5.txt_li_best Orkut	62452.4	768023737
+8_6.txt_li_best Orkut	440862	13401274907
+8_7.txt_li_best Orkut	402537	14901415809
+8_0.txt_li_best LiveJournalrun_mathc.sh: line 16: 1440135 Killed                  ./bin/${p} ${graph_path}/${f}/snap.txt
+8_1.txt_li_best LiveJournal
