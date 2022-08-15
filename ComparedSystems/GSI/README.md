@@ -4,7 +4,7 @@ Compile the code with
  
     make
 
-An executable file 'cuts' is generated. 
+An executable file 'GSI.exe' is generated. 
 
 Decompress the input graph `youtube' in directory ./test_data/graph
 
