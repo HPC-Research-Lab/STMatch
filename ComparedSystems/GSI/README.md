@@ -4,7 +4,7 @@ Compile the code with
  
     make
 
-An executable file `cuts' is generated. 
+An executable file 'cuts' is generated. 
 
 Decompress the graph `youtube' in directory ./test_data/graph
 
