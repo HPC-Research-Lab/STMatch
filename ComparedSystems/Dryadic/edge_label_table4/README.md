@@ -2,16 +2,16 @@
 
 ## Stage 1: Run docker image and reproduce the result of table 4.
     
-    ```shell
-    docker pull weiyihua/dryadic_test
+```shell
+docker pull weiyihua/dryadic_test
 
-    #Replace 665014af3aca with the real image id. 
-    docker run -it -u root 665014af3aca /bin/bash
+#Replace 665014af3aca with the real image id. 
+docker run -it -u root 665014af3aca /bin/bash
 
-    cd home/DryadicBin/
+cd home/DryadicBin/
 
-    #Then run the following commands to do the test. 
-    ```
+#Then run the following commands to do the test. 
+```
 
     ./bin/5_12.txt_li_best ../graphs//Wikivote/snap.txt				// 1.g
     ./bin/5_14.txt_li_best ../graphs//Wikivote/snap.txt				// 2.g
