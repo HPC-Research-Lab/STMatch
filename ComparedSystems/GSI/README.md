@@ -6,7 +6,7 @@ Compile the code with
 
 An executable file 'cuts' is generated. 
 
-Decompress the graph `youtube' in directory ./test_data/graph
+Decompress the input graph `youtube' in directory ./test_data/graph
 
     tar -xzvf youtube.g.tar.gz 
 
