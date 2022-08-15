@@ -36,12 +36,6 @@ make
 ```
 Now you can see 7 executable files ending with .exe in ./bin directory. 
 
-## Test cuTS, GSI and Dryadic
-Code and scripts for reproducing results of cuTS, GSI and Dryadic in Table 3a,  Table 3b and Table 4 are included in the directory ComparedSystems:
-```Shell
-    #Please follow the instructions in this directory to test cuTS, GSI and Dryadic. 
-    cd ComparedSystems
-```
 
 ## Test STMatch
 
@@ -110,4 +104,12 @@ bash test_fig10_local_global_unroll8.sh ./data/bin_graph/email-Enron/
 bash test_fig10_local_global_unroll8.sh ./data/bin_graph/com-youtube.ungraph/
 bash test_fig10_local_global_unroll8.sh ./data/bin_graph/mico/ 
 bash test_fig10_local_global_unroll8.sh ./data/bin_graph/soc-LiveJournal1/ 
+
+
+## Test cuTS, GSI and Dryadic
+Code and scripts for reproducing results of cuTS, GSI and Dryadic in Table 3a,  Table 3b and Table 4 are included in the directory ComparedSystems:
+```Shell
+    #Please follow the instructions in this directory to test cuTS, GSI and Dryadic. 
+    cd ComparedSystems
+```
 ```
