@@ -1,29 +1,17 @@
-# GSI
-
-Li Zeng, Lei Zou, M. Tamer Özsu, Lin Hu, Fan Zhang. **GSI: GPU-friendly Subgraph Isomorphism**. *International Conference on Data Engineering*, 2020.
-
----
-
-GPU-friendly Subgraph Isomorphism 
-
-We target at a one-to-one mapping at a time, the query graph is small(vertices less than 100), while the data graph can be very large.
-(but all can be placed in GPU's global memory)
-
----
-
-## Reproduce the results in table 4
-All the test graphs and patterns are uploaded to this repo. The only thing you need to do is to compile the program. 
+## Reproduce the results of GSI in table 4
     
     mkdir build
     cd build
+    cmake ..
+    make
 
-Now an executable file cuts was generated. 
+Now an executable file cuts is generated. 
 
-Decompress the graph youtube in directory ./test_data/graph
+Decompress the graph `youtube' in directory ./test_data/graph
 
     tar -xzvf youtube.g.tar.gz 
 
-Run the following commands to reproduce the results in table 3a.
+Run the following commands to reproduce the results of GSI in table 3a.
     
     ./GSI.exe ./test_data/graph/WikiVote ./test_data/pattern/1.g
     ./GSI.exe ./test_data/graph/WikiVote ./test_data/pattern/2.g
