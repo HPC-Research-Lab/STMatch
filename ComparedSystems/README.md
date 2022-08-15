@@ -7,7 +7,7 @@ The Dryadic directory contains three subdirectories. The three subdirectories, e
 The GSI directory contains the source code for reproducing the results of GSI in Table4
 
 The following is the original links to CuTS and GSI. 
-Dryadic is not open sourced and we got dryadic from the authors. We offered a docker image for testing. 
+Dryadic is not open sourced and we got dryadic from the authors so we only offered a docker image for testing. 
 
     Dryadic Docker Image Link:  https://hub.docker.com/r/weiyihua/dryadic_test
     CuTS Github:                https://github.com/appl-lab/CuTS
