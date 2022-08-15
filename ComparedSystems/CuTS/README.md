@@ -11,7 +11,7 @@ This repository contains the code for the "cuTS: Scaling Subgraph Isomorphism on
     cmake ..
     make
 
-Now an executable file `cuts' is generated. 
+Now an executable file 'cuts' is generated. 
 
 Run the following commands to reproduce the results in table 3a.
     
