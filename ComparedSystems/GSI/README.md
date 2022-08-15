@@ -1,8 +1,10 @@
 ## Reproduce the results of GSI in table 4
-    
+
+Compile the code with 
+ 
     make
 
-Now an executable file cuts is generated. 
+An executable file cuts is generated. 
 
 Decompress the graph `youtube' in directory ./test_data/graph
 
