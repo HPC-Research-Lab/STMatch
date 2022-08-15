@@ -10,6 +10,7 @@ This repository contains the code for the "cuTS: Scaling Subgraph Isomorphism on
     cd build
     cmake ..
     make
+    cd ..
 
 Now an executable file 'cuts' is generated. 
 
