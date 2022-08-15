@@ -1,6 +1,6 @@
 # Labeled
 
-## Stage 1: Run docker image and reproduce the result of table 4.
+##  Run docker image and reproduce the result of table 4.
     
 ```shell
 docker pull weiyihua/dryadic_test
