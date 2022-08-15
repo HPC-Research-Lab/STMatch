@@ -1,8 +1,5 @@
 ## Reproduce the results of GSI in table 4
     
-    mkdir build
-    cd build
-    cmake ..
     make
 
 Now an executable file cuts is generated. 
