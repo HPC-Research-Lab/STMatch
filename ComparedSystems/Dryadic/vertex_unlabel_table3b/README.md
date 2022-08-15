@@ -8,7 +8,7 @@ docker pull weiyihua/dryadic_test
 #Replace 665014af3aca with the real image id. 
 docker run -it -u root 665014af3aca /bin/bash
 
-cd home/DryadicBin/vertex_unlabel
+cd /home/DryadicBin/vertex_unlabel
 
 #Then run the following commands to do the test. 
 ```
