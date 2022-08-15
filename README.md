@@ -22,7 +22,7 @@ The shell script prepare_data.sh will also labelize the downloaded graphs
 bash prepare_data.sh  
 ```
 
-Now you can see some directories in ~/project/dara/bin_graph/
+Now you can see some directories in ~/project/data/bin_graph/
 ```Shell
 #it's like "com-amazon.ungraph  com-dblp.ungraph  com-youtube.ungraph  email-Enron  wiki-Vote"
 ```
