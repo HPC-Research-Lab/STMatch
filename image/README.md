@@ -1,5 +1,4 @@
-## Overview
-Detailed instructions for matching command line's output with the data in the table
+## Mapping command line output to the results in paper
 
 ## STMatch output for matching Figure 10
 ![image](https://github.com/HPC-Research-Lab/STMatch/blob/main/image/Fig10.png)
